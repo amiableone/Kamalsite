@@ -1,0 +1,9 @@
+<h1>{{ product.name }}</h1>
+<br>
+<li>{{ product.description }}</li>
+<br>
+# Make Like and Add to cart buttons work.
+<li>Like {{ product.likes }} | Add to cart</li>
+<br>
+<li><a href={% url 'shop:purchase' product.id %}>Buy</a></li>
+<li><a href={% url 'shop:index' %}>Back to catalog</a></li>

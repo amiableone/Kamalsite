@@ -1,11 +1,27 @@
-from django.shortcuts import render
-from django.http import HttpResponse
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse, Http404
+from django.template import loader
+
+from .models import Product
 
 def index(request):
-    return  HttpResponse("This is the shop index.")
+    most_popular_products = Product.objects.order_by("-likes")[:16]
+    template = loader.get_template("shop/index.html")
+    context = {
+        "most_popular_products": most_popular_products,
+    }
+    return  HttpResponse(template.render(context, request))
 
 def details(request, product_id):
-    return HttpResponse(f"This is the detail page for product {product_id}")
+    product = get_object_or_404(Product, pk=product_id)
+    context = {
+        "product": product,
+    }
+    return render(request, "shop/details.html", context)
 
 def purchase(request, product_id):
-    return HttpResponse(f"This is the purchase page for product {product_id}")
+    product = get_object_or_404(Product, pk=product_id)
+    context = {
+        "product": product,
+    }
+    return render(request, "shop/buy.html", context)

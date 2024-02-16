@@ -1,0 +1,12 @@
+{% if most_popular_products %}
+    <ul>
+    {% for product in most_popular_products %}
+        <li>
+        <a href="{% url 'shop:details' product.id %}">{{ product.name }}</a></br>
+        Likes: {{product.likes}}
+        </li>
+    {% endfor %}
+    </ul>
+{% else %}
+   <p>Awaiting the next supply. Sorry for the inconvenience :(</p>
+{% endif %}
