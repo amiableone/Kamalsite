@@ -1,7 +1,7 @@
 <h1>{{ product.name }}</h1>
-<li>
-    This is a purchase page.</br>
-    We are working on adding support for new payment methods.</br>
-</li>
-<li><a href={% url 'shop:details' product.id %}>Back to product page</a></li>
-<li><a href={% url 'shop:index' %}>Back to catalog</a></li>
+<p>This is a purchase page.</p>
+<p>We are working on adding support for new payment methods.</p>
+<p>
+    <a href={% url 'shop:details' product.id %}>Back to product page</a> | 
+    <a href={% url 'shop:index' %}>Back to catalog</a>
+</p>
