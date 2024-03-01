@@ -60,6 +60,8 @@ class Category(models.Model):
     description = models.CharField(max_length=300)
     subcategory = models.ForeignKey(Category, on_delete=models.CASCADE)
 
+    products = models.ManyToManyField(Product)
+
     def __str__(self):
         return f"<Category {self.name}>"
 
