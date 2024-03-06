@@ -5,15 +5,27 @@ class Product(models.Model):
     name = models.CharField(max_length=30)
     description = models.TextField()
     in_stock = models.BooleanField(default=False)
-    quantity = models.DecimalField("available quantity", default=0)
-    quantity_measure = models.CharField(max_length=10)
-    price_per_unit = models.DecimalField(decimal_places=2)
+    price = models.DecimalField(
+        null=True,
+        max_digits=2,
+        decimal_places=2,
+    )
+    unit_measure = models.CharField(
+        max_length=10,
+        default="units",
+    )
+    quantity = models.DecimalField(
+        "available quantity",
+        default=0,
+        max_digits=10,
+        decimal_places=2,
+    )
 
     class CurrencyChoice(models.TextChoices):
-        RUB = "руб."
-        USD = "долл."
+        RUB = "RUB"
+        USD = "USD"
     currency = models.CharField(
-        max_length=3,
+        max_length=4,
         choices=CurrencyChoice,
         default=CurrencyChoice.RUB,
     )
@@ -21,49 +33,102 @@ class Product(models.Model):
     # Specify at least one min_order parameter.
     # `min_order_quantity` is in natural terms and
     # `min_order_amount` is in monetary terms.
-    min_order_quantity = models.DecimalField(null=True)
-    min_order_amount = models.DecimalField(null=True)
+    min_order_quantity = models.DecimalField(
+        null=True,
+        max_digits=5,
+        decimal_places=2,
+    )
+    min_order_amount = models.DecimalField(
+        null=True,
+        max_digits=5,
+        decimal_places=2,
+    )
 
     def __str__(self):
-        return f"<Product {self.name.title()}>"
+        return f"{self.name.title()}"
 
 
 class User(models.Model):
+    """This model will be replaced with the User model
+    provided by Django. This one is for fooling around.
+    """
     signed_up = models.BooleanField(default=False)
 
-    # These field may not accept null values if signed_up=True.
+    # These fields may not accept null values if signed_up=True.
     name = models.CharField(max_length=20, null=True)
     user_email = models.EmailField(null=True)
-    user_type = models.CharField(choices=[])
 
     def __str__(self):
         if self.signed_up:
-            return f"<User{self.pk} {self.name}>"
-        return f"<Visitor>"
+            return f"Name={self.name}"
+        return f"Client not logged-in"
+
+
+# Maybe Django provides something useful for the same purpose
+# these commented out models below are for. I'll keep them
+# commented out until they or their Django versions are necessary.
+#
+# class SiteVisit(models.Model):
+#     """Track site visits."""
+#     visit_date = models.DateTimeField()
+#     user = models.ForeignKey(User, on_delete=models.CASCADE)
+#
+#
+# class ProductVisit(SiteVisit):
+#     """Track product page visits."""
+#     # Where did a user come from to this product page
+#     # (none means from outside):
+#     from_main = models.BooleanField(default=False)
+#     from_catalog = models.BooleanField(default=False)
+#     from_similar = models.BooleanField(default=False)
+#     # TODO:
+#     #   If possible and reasonable, add a visit duration tracker.
+#     #   I also could add something like an action tracker to log
+#     #   actions such as likes, additions, commenting, studying
+#     #   colours, adjusting quantities, going to similar products,
+#     #   etc.
+#
+#     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
 
 class Like(models.Model):
-    user = models.ForeignKey(User,on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="liked_products",
+    )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
-        related_name="likes",
+        related_name="liked_by",
     )
-    quantity = models.PositiveIntegerField(default=0)
+    liked = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "product"],
+                name="unique_user_product",
+            ),
+        ]
 
     def __str__(self):
-        return f"<Like: {self.product} liked by {self.user}>"
+        return f"{self.user} liked {self.product}"
 
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=300)
-    subcategory = models.ForeignKey(Category, on_delete=models.CASCADE)
+    parent_category = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        related_name="subcategories",
+    )
 
     products = models.ManyToManyField(Product)
 
     def __str__(self):
-        return f"<Category {self.name}>"
+        return f"{self.name}"
 
 
 class Cart(models.Model):
@@ -72,47 +137,47 @@ class Cart(models.Model):
         on_delete=models.CASCADE,
         primary_key=True,
     )
-    products = models.ManyToManyField(Product, through=Addition)
+    products = models.ManyToManyField(Product, through="Addition")
     # TODO:
     #   Add a feature allowing purchasing products from the cart
     #   in separate orders.
 
     def __str__(self):
-        return f"<Cart of {self.user}>"
+        return f"Owned by {self.user}"
 
 
 class Addition(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    cart = models.ForeignKey(Product, on_delete=models.CASCADE)
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
     date_added = models.DateField()
-    quantity_added = models.DecimalField()
+    quantity_added = models.DecimalField(max_digits=5, decimal_places=2)
+    ready_to_order = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"<Addition of {self.product} to {self.cart}>"
+        return f"{self.product} added to {self.cart}"
 
 
 class Order(models.Model):
-    # This should be possible to create from Cart
+    # Clients should be able to create orders from Cart
     # as well as directly from a Product page.
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    products = models.ManyToManyField(Product, through=OrderDetail)
+    products = models.ManyToManyField(Product, through="OrderDetail")
+
+    date_created = models.DateTimeField()
+    paid = models.BooleanField(default=False)
+    payment_date = models.DateTimeField()
 
     def __str__(self):
-        return f"<Order by {self.user}>"
+        return f"Made by {self.user}"
 
 
 class OrderDetail(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-
-    # Creating an order means confirming readiness to buy and pay.
-    date_created = models.DateTimeField()
-    quantity_ordered = models.DecimalField()
-    date_paid = models.DateTimeField(null=True)
-
+    quantity_ordered = models.DecimalField(max_digits=5, decimal_places=2)
 
     def __str__(self):
-        return f"<OrderDetail for {self.order}>"
+        return f"Details of {self.order}"
 
 
 class Comment(models.Model):
@@ -127,7 +192,4 @@ class Comment(models.Model):
         return self.entry
 
     def __str__(self):
-        return f"<Comment by {self.user}: {self._shorten()}>"
-
-# TODO:
-#   Add models Page, Search, and similar for managing the site structure.
+        return f"{self._shorten()}"
