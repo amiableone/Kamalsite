@@ -21,15 +21,6 @@ class Product(models.Model):
         decimal_places=2,
     )
 
-    class CurrencyChoice(models.TextChoices):
-        RUB = "RUB"
-        USD = "USD"
-    currency = models.CharField(
-        max_length=4,
-        choices=CurrencyChoice,
-        default=CurrencyChoice.RUB,
-    )
-
     # Specify at least one min_order parameter.
     # `min_order_quantity` is in natural terms and
     # `min_order_amount` is in monetary terms.
@@ -43,6 +34,14 @@ class Product(models.Model):
         max_digits=5,
         decimal_places=2,
     )
+
+    # TODO:
+    #   1. Make save() interrupt if min_order is not specified
+    #   and update min_order_amount each time min_order_quantity
+    #   is updated.
+    #   2. Create as many dummy methods for all models as needed
+    #   for writing tests. Let's make the development of this
+    #   project test-driven ;)
 
     def __str__(self):
         return f"{self.name.title()}"
