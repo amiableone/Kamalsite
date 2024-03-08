@@ -4,7 +4,6 @@ from django.db import models
 class Product(models.Model):
     name = models.CharField(max_length=30)
     description = models.TextField()
-    in_stock = models.BooleanField(default=False)
     price = models.DecimalField(
         null=True,
         max_digits=2,
@@ -22,14 +21,8 @@ class Product(models.Model):
     )
 
     # Specify at least one min_order parameter.
-    # `min_order_quantity` is in natural terms and
-    # `min_order_amount` is in monetary terms.
+    # `quantity` in units and `amount` in monetary terms.
     min_order_quantity = models.DecimalField(
-        null=True,
-        max_digits=5,
-        decimal_places=2,
-    )
-    min_order_amount = models.DecimalField(
         null=True,
         max_digits=5,
         decimal_places=2,
@@ -42,6 +35,18 @@ class Product(models.Model):
     #   2. Create as many dummy methods for all models as needed
     #   for writing tests. Let's make the development of this
     #   project test-driven ;)
+
+    def save(self, *args, **kwargs):
+        if self.min_order_quantity is None:
+            return # Can't save without specifying min_order
+
+        super().save(*args, **kwargs)
+
+    def in_stock(self):
+        return self.quantity > 0
+
+    def min_order_amount(self):
+        return self.min_order_quantity * self.price
 
     def __str__(self):
         return f"{self.name.title()}"
