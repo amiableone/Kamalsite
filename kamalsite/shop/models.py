@@ -1,4 +1,5 @@
 from django.db import models
+from myauth.models import User
 
 
 class Product(models.Model):
@@ -80,11 +81,11 @@ class Product(models.Model):
 
 
 class Like(models.Model):
-    # user = models.ForeignKey(
-    #     User,
-    #     on_delete=models.CASCADE,
-    #     related_name="liked_products",
-    # )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="liked_products",
+    )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -92,17 +93,17 @@ class Like(models.Model):
     )
     liked = models.BooleanField(default=False)
 
-    # class Meta:
-    #     constraints = [
-    #         models.UniqueConstraint(
-    #             fields=["user", "product"],
-    #             name="unique_user_product",
-    #         ),
-    #     ]
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "product"],
+                name="unique_user_product",
+            ),
+        ]
 
     def __str__(self):
-        return f"User liked {self.product}"
-        # return f"{self.user} liked {self.product}"
+        # return f"User liked {self.product}"
+        return f"{self.user} liked {self.product}"
 
 
 class Category(models.Model):
@@ -120,36 +121,36 @@ class Category(models.Model):
         return f"{self.name}"
 
 
-# class Cart(models.Model):
-#     user = models.OneToOneField(
-#         User,
-#         on_delete=models.CASCADE,
-#         primary_key=True,
-#     )
-#     products = models.ManyToManyField(Product, through="Addition")
-#     # TODO:
-#     #   Add a feature allowing purchasing products from the cart
-#     #   in separate orders.
-#
-#     def __str__(self):
-#         return f"Owned by {self.user}"
+class Cart(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        primary_key=True,
+    )
+    products = models.ManyToManyField(Product, through="Addition")
+    # TODO:
+    #   Add a feature allowing purchasing products from the cart
+    #   in separate orders.
+
+    def __str__(self):
+        return f"Owned by {self.user}"
 
 
-# class Addition(models.Model):
-#     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-#     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
-#     date_added = models.DateField()
-#     quantity_added = models.DecimalField(max_digits=5, decimal_places=2)
-#     ready_to_order = models.BooleanField(default=True)
-#
-#     def __str__(self):
-#         return f"{self.product} added to {self.cart}"
+class Addition(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
+    date_added = models.DateField()
+    quantity_added = models.DecimalField(max_digits=5, decimal_places=2)
+    ready_to_order = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.product} added to {self.cart}"
 
 
 class Order(models.Model):
     # Clients should be able to create orders from Cart
     # as well as directly from a Product page.
-    # user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     products = models.ManyToManyField(Product, through="OrderDetail")
 
     date_created = models.DateTimeField()
@@ -157,8 +158,8 @@ class Order(models.Model):
     payment_date = models.DateTimeField()
 
     def __str__(self):
-        return f"Made by User"
-        # return f"Made by {self.user}"
+        # return f"Made by User"
+        return f"Made by {self.user}"
 
 
 class OrderDetail(models.Model):
@@ -168,18 +169,3 @@ class OrderDetail(models.Model):
 
     def __str__(self):
         return f"Details of {self.order}"
-
-
-class Comment(models.Model):
-    product  = models.ForeignKey(Product, on_delete=models.CASCADE)
-    # user = models.ForeignKey(User, on_delete=models.CASCADE)
-    entry = models.TextField()
-
-    def _shorten(self):
-        extract = self.entry[:10] + "..."
-        if len(extract) < len(self.entry):
-            return extract
-        return self.entry
-
-    def __str__(self):
-        return f"{self._shorten()}"
