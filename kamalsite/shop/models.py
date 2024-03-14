@@ -1,6 +1,45 @@
 from django.db import models
 from myauth.models import User
 
+# TODO:
+#   -   Create as many dummy methods for all models as needed
+#       for writing tests. Let's make the development of this
+#       project test-driven ;)
+#   -   Every time an order is created, Product.quantity is
+#       adjusted accordingly. Adding a product to cart doesn't
+#       change this parameter.
+#   -   Every time an order is paid (Order instance paid
+#       attribute becomes True), this should happen:
+#       -   Purchase model (which currently doesn't exist)
+#           is updated with a new entry,
+#       -
+#   -   Create Discount model with relations to Category,
+#       Product, and production.Collection to make it easy to
+#       add discounts in bulk.
+#   -   Track popularity of products based on number of vists
+#       of product pages, likes, number of purchases and
+#       purchasers, and purchase amounts.
+#   -   Add new fields, attributes, or methods to Product:
+#       -   in_production BooleanField denoting that a product
+#           is either can be produced or can be purchased from
+#           suppliers.
+#       -   stock_keeping_unit (or sku) field which will be
+#           its identifier along with its id.
+#       -   preorder BooleanField denoting that a product may
+#           be purchased even though it's not currently in
+#           production (in_production=False).
+#   -   Price, popularity, novelty, and the SKU will be used
+#       as parameters for users to sort products by on the
+#       site.
+#   -   Add new parameters to Order and/or Purchase:
+#       -   time_before_ready() returning how long a client
+#           will have to wait until either they can take what
+#           they purchased or the goods can be sent to them.
+#           This may be based on two things:
+#           -   How much of this product can be produced in
+#               one go (to be specified in ProductionDetails
+#               for each product),
+#           -   How much a client has ordered
 
 class Product(models.Model):
     name = models.CharField(max_length=30)
@@ -28,14 +67,6 @@ class Product(models.Model):
         max_digits=5,
         decimal_places=2,
     )
-
-    # TODO:
-    #   1. Make save() interrupt if min_order is not specified
-    #   and update min_order_amount each time min_order_quantity
-    #   is updated.
-    #   2. Create as many dummy methods for all models as needed
-    #   for writing tests. Let's make the development of this
-    #   project test-driven ;)
 
     def save(self, *args, **kwargs):
         if self.min_order_quantity is None:
