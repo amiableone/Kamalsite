@@ -1,4 +1,6 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
+
 from shop.models import Product
 
 # TODO:
@@ -28,15 +30,48 @@ from shop.models import Product
 
 
 class Component(models.Model):
-    """Components and materials needed to produce a Product."""
+    """Components and materials needed to produce a Product.
+    `products` specifies products a component is used in production of.
+    """
+    name = models.CharField(max_length=50)
+    unit_measure = models.CharField(max_length=50)
     products = models.ManyToManyField(Product)
 
 
-class Facility(models.Model):
-    """Production facilities owned."""
-    products = models.ManyToManyField(Product)
+class Supplies(models.Model):
+    component = models.ForeignKey(
+        Component,
+        on_delete=models.SET_NULL,
+        null=True,
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+
+    class SOURCES(models.TextChoices):
+        PRODUCED = "Produced", _("Produced")
+        PURCHASED = "Purchased", _("Purchased")
+        FOUND = "Found", _("Found")
+
+    source = models.CharField(choices=SOURCES)
+    supplier = models.ForeignKey(
+        "Supplier",
+        on_delete=models.SET_NULL,
+        related_name="supplies",
+        null=True,
+    )
+    order_date = models.DateTimeField()
+    delivery = models.DateTimeField()
+    actual_delivery = models.DateTimeField()
 
 
 class Supplier(models.Model):
-    """Suppliers of components and materials."""
+    """Suppliers of components and materials.
+    `components` specify what components may be ordered from the supplier.
+    """
+    name = models.CharField(max_length=50)
+    email = models.EmailField(max_length=50, null=True)
+    phone = models.BigIntegerField(null=True)
+    address = models.CharField(max_length=200)
+    owned = models.BooleanField(default=False)
+
     components = models.ManyToManyField(Component)
