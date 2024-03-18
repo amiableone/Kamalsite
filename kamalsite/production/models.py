@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from shop.models import Product
@@ -59,9 +60,9 @@ class Supplies(models.Model):
         related_name="supplies",
         null=True,
     )
-    order_date = models.DateTimeField()
-    delivery = models.DateTimeField()
-    actual_delivery = models.DateTimeField()
+    order_date = models.DateTimeField(default=timezone.now)
+    delivery = models.DateTimeField(null=True)
+    actual_delivery = models.DateTimeField(null=True)
 
 
 class Supplier(models.Model):

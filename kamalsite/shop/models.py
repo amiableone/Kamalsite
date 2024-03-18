@@ -1,7 +1,8 @@
 from django.db import models
 from myauth.models import User
+from django.utils import timezone
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # TODO:
 #   -   Create as many dummy methods for all models as needed for writing
@@ -44,7 +45,6 @@ class Product(models.Model):
     name = models.CharField(max_length=75)
     description = models.TextField()
     price = models.DecimalField(
-        null=True,
         max_digits=12,
         decimal_places=2,
     )
@@ -67,7 +67,11 @@ class Product(models.Model):
         decimal_places=2,
     )
 
-    collection = models.ForeignKey("Collection", on_delete=models.CASCADE)
+    collection = models.ForeignKey(
+        "Collection",
+        on_delete=models.CASCADE,
+        null=True,
+    )
     discount = models.ForeignKey(
         "Discount",
         on_delete=models.SET_NULL,
@@ -161,6 +165,7 @@ class Category(models.Model):
 class Collection(models.Model):
     name = models.CharField(max_length=50)
     description = models.CharField(max_length=150)
+    date_created = models.DateTimeField(default=timezone.now)
 
     # Allow users to see this collection.
     visible = models.BooleanField(default=False)
@@ -172,12 +177,16 @@ class Collection(models.Model):
     )
 
 
+def discount_end_date():
+    """Return a date two weeks from now."""
+    return timezone.now() + timedelta(days=14)
+
 class Discount(models.Model):
     reason = models.CharField(max_length=50)
     percent = models.PositiveSmallIntegerField()
     seasonal = models.BooleanField(default=False)
-    start = models.DateField(null=True)
-    end = models.DateField(null=True)
+    start = models.DateField(default=timezone.now)
+    end = models.DateField(default=discount_end_date)
 
     # This is a user group name or an empty string.
     group = models.CharField(max_length=50)
@@ -201,7 +210,7 @@ class Cart(models.Model):
 class Addition(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
-    date_added = models.DateField()
+    date_added = models.DateField(auto_now=True)
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
 
     # ready_to_order is for identifiyng products create an order with.
@@ -218,7 +227,8 @@ class Order(models.Model):
     products = models.ManyToManyField(Product, through="OrderDetail")
 
     # Learn how to use tzinfo of datetime
-    date_created = models.DateTimeField(default=datetime.now())
+    date_created = models.DateTimeField(auto_now=True)
+    last_updated = models.DateTimeField(auto_now_add=True)
     paid = models.BooleanField(default=False)
 
     def amount(self):
@@ -232,7 +242,7 @@ class Order(models.Model):
         if not self.paid and not hasattr(self, "purchase"):
             p = Purchase(
                 order=self,
-                payment_date=datetime.now(),
+                # DateTimeField is filled automatically.
                 shipment=shipment,
             )
             p.save()
@@ -265,7 +275,7 @@ class Purchase(models.Model):
         primary_key=True,
     )
 
-    payment_date = models.DateTimeField(default=datetime.now())
+    payment_date = models.DateTimeField(auto_now=True)
 
     # A user can add shipment details beforehand and choose one of them
     # when filling out order details.
