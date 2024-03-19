@@ -1,8 +1,8 @@
+import datetime
+
 from django.db import models
 from myauth.models import User
-from django.utils import timezone
 
-from datetime import datetime, timedelta
 
 # TODO:
 #   -   Create as many dummy methods for all models as needed for writing
@@ -44,6 +44,8 @@ from datetime import datetime, timedelta
 class Product(models.Model):
     name = models.CharField(max_length=75)
     description = models.TextField()
+    sku = models.PositiveBigIntegerField(unique=True)
+    colour = models.CharField(max_length=30)
     price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -69,7 +71,7 @@ class Product(models.Model):
 
     collection = models.ForeignKey(
         "Collection",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         null=True,
     )
     discount = models.ForeignKey(
@@ -94,45 +96,18 @@ class Product(models.Model):
         return f"{self.name.title()}"
 
 
-# Maybe Django provides something useful for the same purpose
-# these commented out models below are for. I'll keep them
-# commented out until they or their Django versions are necessary.
-#
-# class SiteVisit(models.Model):
-#     """Track site visits."""
-#     visit_date = models.DateTimeField()
-#     user = models.ForeignKey(User, on_delete=models.CASCADE)
-#
-#
-# class ProductVisit(SiteVisit):
-#     """Track product page visits."""
-#     # Where did a user come from to this product page
-#     # (none means from outside):
-#     from_main = models.BooleanField(default=False)
-#     from_catalog = models.BooleanField(default=False)
-#     from_similar = models.BooleanField(default=False)
-#     # TODO:
-#     #   If possible and reasonable, add a visit duration tracker.
-#     #   I also could add something like an action tracker to log
-#     #   actions such as likes, additions, commenting, studying
-#     #   colours, adjusting quantities, going to similar products,
-#     #   etc.
-#
-#     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-
-
 class Like(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="liked_products",
+        related_name="likes",
     )
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
         related_name="liked_by",
     )
-    liked = models.BooleanField(default=False)
+    liked = models.BooleanField(default=True)
 
     class Meta:
         constraints = [
@@ -143,8 +118,7 @@ class Like(models.Model):
         ]
 
     def __str__(self):
-        # return f"User liked {self.product}"
-        return f"{self.user} liked {self.product}"
+        return f"{self.user.username} liked {self.product}"
 
 
 class Category(models.Model):
@@ -152,8 +126,9 @@ class Category(models.Model):
     description = models.CharField(max_length=150)
     parent_category = models.ForeignKey(
         "self",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="subcategories",
+        null=True,
     )
 
     products = models.ManyToManyField(Product)
@@ -165,7 +140,7 @@ class Category(models.Model):
 class Collection(models.Model):
     name = models.CharField(max_length=50)
     description = models.CharField(max_length=150)
-    date_created = models.DateTimeField(default=timezone.now)
+    date_created = models.DateField(default=datetime.date.today)
 
     # Allow users to see this collection.
     visible = models.BooleanField(default=False)
@@ -179,13 +154,13 @@ class Collection(models.Model):
 
 def discount_end_date():
     """Return a date two weeks from now."""
-    return timezone.now() + timedelta(days=14)
+    return datetime.date.today() + datetime.timedelta(days=14)
 
 class Discount(models.Model):
     reason = models.CharField(max_length=50)
     percent = models.PositiveSmallIntegerField()
     seasonal = models.BooleanField(default=False)
-    start = models.DateField(default=timezone.now)
+    start = models.DateField(default=datetime.date.today)
     end = models.DateField(default=discount_end_date)
 
     # This is a user group name or an empty string.
@@ -211,7 +186,10 @@ class Addition(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
     date_added = models.DateField(auto_now=True)
-    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # When Addition instance is created, it should be provided
+    # min_order_quantity of the product it relates to as default.
+    quantity = models.DecimalField(max_digits=12,  decimal_places=2)
 
     # ready_to_order is for identifiyng products create an order with.
     ready_to_order = models.BooleanField(default=True)
@@ -226,9 +204,8 @@ class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     products = models.ManyToManyField(Product, through="OrderDetail")
 
-    # Learn how to use tzinfo of datetime
-    date_created = models.DateTimeField(auto_now=True)
-    last_updated = models.DateTimeField(auto_now_add=True)
+    date_created = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
     paid = models.BooleanField(default=False)
 
     def amount(self):
@@ -260,7 +237,11 @@ class Order(models.Model):
 
 
 class OrderDetail(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        null=True,
+    )
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
 
@@ -275,15 +256,32 @@ class Purchase(models.Model):
         primary_key=True,
     )
 
-    payment_date = models.DateTimeField(auto_now=True)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    cancelled = models.BooleanField(default=False)
 
     # A user can add shipment details beforehand and choose one of them
     # when filling out order details.
     # Or they can add shipment details right when filling out order details,
     # in which case they will be asked if they want to save these details.
-    shipment = models.ForeignKey("Shipment", on_delete=models.CASCADE)
+    shipment = models.ForeignKey(
+        "Shipment",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
 
 
 class Shipment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipment_address = models.CharField(max_length=300)
+
+
+class Defect(models.Model):
+    """Model for writing-off bad Products."""
+    description = models.CharField(max_length=100)
+    date = models.DateField(auto_now_add=True)
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=12)

@@ -1,3 +1,5 @@
+import datetime
+
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -63,6 +65,7 @@ class Supplies(models.Model):
     order_date = models.DateTimeField(default=timezone.now)
     delivery = models.DateTimeField(null=True)
     actual_delivery = models.DateTimeField(null=True)
+    cancelled = models.BooleanField(default=False)
 
 
 class Supplier(models.Model):
@@ -76,3 +79,34 @@ class Supplier(models.Model):
     owned = models.BooleanField(default=False)
 
     components = models.ManyToManyField(Component)
+
+
+def production_complete_date():
+    return datetime.date.today() + datetime.timedelta(days=14)
+
+class Production(models.Model):
+    """Each Production instance reflects a single process of converting
+    some components from Supplies into a set of Products.
+    """
+    products = models.ManyToManyField(Product, through="ProductsMade")
+    materials = models.ManyToManyField(Supplies, through="MaterialsUsed")
+    start = models.DateField(default=datetime.date.today)
+    end = models.DateField(default=production_complete_date)
+
+
+class ProductsMade(models.Model):
+    """Planned and actual quantities of a product as an outcome of a
+    production process and its completeness status.
+    """
+    production = models.ForeignKey(Production, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    plan_qty = models.DecimalField(max_digits=12, decimal_places=2)
+    actual_qty = models.DecimalField(max_digits=12, decimal_places=2)
+    complete = models.BooleanField(default=False)
+
+
+class MaterialsUsed(models.Model):
+    """How much of a certain supply was used in a certain process."""
+    production = models.ForeignKey(Production, on_delete=models.CASCADE)
+    supply = models.ForeignKey(Supplies, on_delete=models.CASCADE)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)

@@ -3,6 +3,8 @@ Lib/*
 Scripts/*
 pyvenv.cfg
 db.sqlite3
-**/__pycache__/*
 
+**/__pycache__/*
 **/.idea/*
+
+actions_consequences.txt
