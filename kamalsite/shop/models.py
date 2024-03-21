@@ -7,39 +7,12 @@ from myauth.models import User
 # TODO:
 #   -   Create as many dummy methods for all models as needed for writing
 #       tests. Let's make the development of this project test-driven ;)
-#   -   Every time an order is created, this should happen:
-#       -   Product.quantity is adjusted accordingly. (Adding a product to
-#           cart doesn't change this parameter.)
-#           -   TO BE PROGRAMMED IN VIEW
-#       -   User is urged to fill out an order form (doesn't yet exists).
-#   -   Every time an order is paid (Order instance paid attribute becomes
-#       True), this should happen:
-#       -   Purchase model (which currently doesn't exist) is updated with
-#           a new entry with data from the order form filled out by the
-#           user.
-#       -
-#   -   Create Discount model with relations to Category, Product, and
-#       production.Collection to make it easy to add discounts in bulk.
 #   -   Track popularity of products based on number of vists of product
 #       pages, likes, number of purchases and purchasers, and purchase
 #       amounts.
-#   -   Add new fields, attributes, or methods to Product:
-#       -   in_production BooleanField denoting that a product is either
-#           can be produced or can be purchased from suppliers.
-#       -   stock_keeping_unit (or sku) field which will be its identifier
-#           along with its id.
-#       -   preorder BooleanField denoting that a product may be purchased
-#           even though it's not currently in production
-#           (in_production=False).
 #   -   Price, popularity, novelty, and the SKU will be used as parameters
 #       for users to sort products by on the site.
-#   -   Add new parameters to Order and/or Purchase:
-#       -   time_before_ready() returning how long a client will have to
-#           wait until either they can take what they purchased or the
-#           goods can be sent to them. This may be based on two things:
-#           -   How much of this product can be produced in one go (to be
-#               specified in ProductionDetails for each product),
-#           -   How much a client has ordered
+#       -   Hence, add an on_sale_since field to Product.
 
 class Product(models.Model):
     name = models.CharField(max_length=75)
@@ -219,6 +192,13 @@ class Order(models.Model):
     )
     date_created = models.DateTimeField(auto_now_add=True)
     confirmed = models.BooleanField(default=False)
+
+    # TODO:
+    #   -   Make Order.quantity uneditable as soon as confirmed is set to
+    #       True.
+    #   -   Add `edit()` method to allow users to make requests to change
+    #       quantities after confirming the order with a disclaimer that
+    #       no guarantees that the request will be granted are implied.
 
     def amount(self):
         """Compute total amount of the order and return a tuple of the
