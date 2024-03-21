@@ -204,25 +204,42 @@ class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     products = models.ManyToManyField(Product, through="OrderDetail")
 
+    # A user can add shipment details beforehand and choose one of them
+    # when filling out order details.
+    # Or they can add shipment details right when filling out order
+    # details, in which case they can save these details which will attach
+    # them to their profile by creating a Shipment instance based on the
+    # shipment_address value.
+    shipped = models.BooleanField(default=False)
+    shipment_address = models.CharField(max_length=300)
+    shipment_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
     date_created = models.DateTimeField(auto_now_add=True)
-    last_updated = models.DateTimeField(auto_now=True)
-    paid = models.BooleanField(default=False)
+    confirmed = models.BooleanField(default=False)
 
     def amount(self):
+        """Compute total amount of the order and return a tuple of the
+        order price and the cost of shipment.
+        """
         total = 0
         for detail in self.orderdetail_set:
-            part = detail.product.price * detail.quantity_ordered
-            total += part
-        return total
+            element = detail.product.price * detail.quantity_ordered
+            total += element
+        return total, self.shipment_cost
 
-    def pay(self, shipment=None):
-        if not self.paid and not hasattr(self, "purchase"):
-            p = Purchase(
-                order=self,
-                # DateTimeField is filled automatically.
-                shipment=shipment,
-            )
+    def make_purchase(self):
+        if self.confirmed and not hasattr(self, "purchase"):
+            p = Purchase(order=self)
             p.save()
+
+    def completed(self):
+        try:
+            return self.purchase.payment_received
+        except Purchase.DoesNotExist:
+            return False
 
     def save(self, *args, **kwargs):
         for detail in self.orderdetail_set:
@@ -257,20 +274,14 @@ class Purchase(models.Model):
     )
 
     payment_date = models.DateTimeField(auto_now_add=True)
+    payment_received = models.BooleanField(default=False)
     cancelled = models.BooleanField(default=False)
-
-    # A user can add shipment details beforehand and choose one of them
-    # when filling out order details.
-    # Or they can add shipment details right when filling out order details,
-    # in which case they will be asked if they want to save these details.
-    shipment = models.ForeignKey(
-        "Shipment",
-        on_delete=models.SET_NULL,
-        null=True,
-    )
 
 
 class Shipment(models.Model):
+    """Shipment address to ship goods to. Can be created only for
+    authenticated users.
+    """
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipment_address = models.CharField(max_length=300)
 
