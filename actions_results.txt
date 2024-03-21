@@ -1,0 +1,351 @@
+This is an attempt to catch as much operations that should happen when the 
+kamalsite is working. (It implies both backend and frontend.) The idea is to do
+so by modelling a user interaction with the site, identifying all actions the 
+interaction consists of, and constructing a tree of operations initiated as a 
+result of each action. This is why the file is called `actions_results`.
+
+The goal is to understand how operations are chained together so that it's easy
+to create tests. Because this way, parts of the site that are not covered by 
+tests are more evident.
+
+A - for actions, R - for results, (n) - for counting actions.
+
+A1. A person visits (1) the site.
+    R:
+    1. A cookie policy consent and management block (with a `Manage cookies`
+       button) is conjured up at the bottom of the site the first time a user
+       with this particular meta-data enters the site. They are notified that,
+       by continuing to use the site, they implicitly accept the cookie policy
+       of the site.
+    2. Something like storing cookie data happens.
+       TODO: learn how to do this - NOT DONE.
+
+A2. They choose from the list of categories (2) in the filter block.
+    R:
+    NOTE: A2 assumes the filter block is built in the catalog page whereas it'd
+          be probably better if it appears from the left side after a user 
+          clicks on some `Filter` button.
+    1. Not sure if anything particular happens. It's probably a simple html
+       form that sends the POST data after being confirmed (see A3).
+
+A3. They click on `confirm` (3) to confirm their choice.
+    R:
+    1. The client sends POST request to the server.
+    2. CatalogView retrieves categories from request.POST.
+       TODO: create CatalogView - NOT DONE.
+    3. The view creates a queryset of products from retrieved categories using
+       Product.objects.filter(...).
+    4. The queryset is supplied to a dedicated template that does its job.
+
+A4. They see a catalog that lists products from chosen categories.
+A5. They like one of the products (4).
+    NOTE: a like acts as a bookmark. As I understand it, this like will be 
+          discarded as soon as the cookies of this anonymous user are deleted.
+    R:
+    1. CatalogView retrieves user, product data from request.POST to create a
+       Like instance or to set its liked to True if it already exists.
+    2. The view tells product_card template to display the product as liked for
+       this user.
+       TODO: create the view and the template - NOT DONE.
+
+A6. They like another couple of products (see A5).
+A7. They go to the Bookmarks section (5).
+    R:
+    1. BookmarksView creates a queryset of Like objects for this user for which
+       liked=True.
+       TODO: create BookmarksView - NOT DONE. 
+       NOTE: It should be a small drop-down panel, not a separate page.
+    2. The view tells a template to display products that these Like objects
+       point to.
+
+A8. They delete one of the products from bookmarks (6).
+    R:
+    1. The client sends POST request.
+    2. BookmarksView retrieves data from POST request.
+    3. BookmarksView gets a corresponding Like object and sets its liked to 
+       False.
+    4. BookmarksView the product from context used in rendering the response.
+       NOTE: If it so happens that the product is displayed in the catalog on
+             the background of the bookmarks panel, it should be somehow
+             updated, too. But I don't know whether it should be BookmarksView
+             or CatalogView.
+       TODO: learn how to do it - NOT DONE.
+
+A9. They click on one of the products (7).
+    R:
+    1. The client sends GET request.
+    2. ProductView gets user.id and product.id from request.GET.
+       TODO: create ProductView - NOT DONE.
+       2.1. The view uses user.id to find out what product data to retrieve
+            from a corresponding product (as it may differ for different groups
+            of users).
+       2.2. These are supplied to a dedicated template that constructs the 
+            page.
+    3. A Visit model instance is created that connects user, product, date, and
+       maybe other data related to each visit.
+       TODO: create the Visit model - NOT DONE.
+             NOTE: the model should probably have a unique constraint on user-
+                   product combination within a certain time frame (e.g. a day
+                   or an hour).
+
+A10. The user clicks on the `Add to cart` button (8).
+     R:
+     1. The client sends POST request.
+     2. ProductView retrieves user.id, product.id data from request.POST.
+     3. ProductView.add_to_cart(...) is called.
+        TODO: create the corresponding method - NOT DONE.
+        3.1. An Addition instance is created that connects the product with a 
+             Cart instance connected to the user.
+             NOTE: it may be done through another method called within the
+                   current one.
+             3.1.1. If Cart.DoesNotExist is catched, the Cart instance is 
+                    created and then the product is added to it.
+             3.1.2. product.min_order_quantity is provided as default quantity
+                    value to the instance (it's editable).
+
+A11. They go to the Bookmarks again (see A7).
+A12. They go to the page of the next product (see A9).
+A13. They choose another available colour (9).
+     R:
+     NOTE: this one assumes that product_details (or whatever) template uses
+           different static files to display the same product in its different
+           variations.
+     1. The client sends GET request.
+     2. ProductView retrieves colour related data from request.GET.
+     3. ProductView retrieves a product corresponding to these data.
+     4. ProductView puts the data in context to render the response.
+     5. The product_details template makes its job.
+
+A14. They click on the `Add to cart` button (10).
+     R:
+     1. The client sends POST request.
+     2. ProductView retrieves product.id from request.POST. 
+     3. See A10-3.
+
+A15. The user clicks on the `My cart` button (11).
+     R:
+     1. The client sends GET request.
+     1. CartView retrieves user.id from request.GET. 
+        TODO: create the CartView view - NOT DONE.
+        NOTE: The view is a panel hovering above the rest of the content
+              (similar to the bookmarks panel). This style will likely require
+              using javascript.
+     2. A value returned by Cart.amount() (which is a total monetary amount of
+        marked items) is put in the context used in rendering an http-response.
+        2.1. Whenever a user changes quantities or removes products, the client
+             sends GET request.
+        2.2. CartView updates the context.
+        TODO: create Cart.amount() - NOT DONE.
+        NOTE: See Order.amount().
+     3. From the BoughtTogetherCounts model, CartView retrieves Products that
+        people often buy together with the ones in the Cart.
+        TODO: create the BoughtTogetherCounts model - NOT DONE. 
+        NOTE: I see it as a through-model of a many-to-many relationship of
+              Product to itself. It will be created/updated every time an order
+              gets confirmed and its count PositiveIntegerField will be set to
+              unity at creation and incremented each time it's updated by 1.
+     4. CartView limits the queryset by top 3 products and updates the context.
+     5. The reponse uses a template that adds `Add to cart` and `Quick preview`
+        buttons to the People also buy items.
+        NOTE: Quick preview feature will be coded in Javascript.
+
+THIS IS WHERE I LEFT. EVERYTHING BELOW IS YET TO BE CLARIFIED AND PRETTIFIED.
+
+A16. They see a message saying that they will have access to wholesale 
+     prices if they sign in. They also see that, initially all the products
+     in the cart are marked. The mark is of the same colour as the `Buy`
+     button to make it intuitive that the button only creates an order for
+     the marked items.
+A17. So let's say the user removes a mark from one of the products (12).
+     R:
+     1. CartView retrieves product.id from request.POST.
+        1.1. CartView.remove_mark(), or whatever, finds Addition.objects.
+             get(product=product.id) and sets its ready_to_order to False.
+
+A18. They click on the `split` button (13).
+     R:
+     1. CartView retrieves product.id from request.POST.
+        1.1. An Addition instance for this product.id is created with the
+             ready_to_order set to False. (This is useful for keeping the
+             product in the cart after putting it in an order if one 
+             wants to save it for the next order as well.)
+
+A19. They increase the quantity of the other product in their cart (14) by 
+     tapping the `+` button (`-` button is unavailable when the quantity is
+     set to min_order_quantity). (They also could just type the required 
+     quantity manually.)
+     R:
+     1. CartView increments quantity parameter of the corresponding Addition
+        instance by 1 unit of whatever unit_measure of the corresponding 
+        Product is.
+
+A20. From 19: The user can either click on the `Buy` button (15).
+     NOTE: this is a breaking point.
+     R:
+     1. OrderView accepts cart.id to render a view.
+     2. An Order instance is created.
+     3. Products from the Cart are added to Order.products.
+        3.1. OrderDetail instance for each product is created.
+        3.2. quantity values from Addition instances are assigned to 
+             OrderDetail instances with corresponding products.
+     4. If the user is authenticated, OrderCreationStepOneView will fill out
+        the purchaser part of the first step order creation form (see A27) 
+        automatically by providing relevant user data to a dedicated 
+        template.
+
+A21. From 19: Or they can decide to sign-in first. Let's say the user now 
+     sees the `Fast sign-up` button under the message from A16.
+     So let's say the user decides to create an account by clicking on the 
+     `Fast sign-up` button (16)
+     R:
+     1. FastAuthView uses a fast_sign_up template to display a form that
+        accepts user email and provides two fields for creating and confir-
+        ming a password. Under the form, there is an `Already have an 
+        account` button.
+        NOTE: The form itself is on a panel hovering over the page, not a 
+              separate page. Probably will require using Javascript.
+
+A22. They provide required data (17).
+     R:
+     1. Corresponding forms accept input from the user, probably validate
+        it, and store it somehow (maybe cache it).
+     2. Email is sent to the provided email asking to confirm the creation 
+        of the account.
+     3. The site somehow memorizes the fact that the account was created 
+        from the My Cart page so that it redirects to the same page after 
+        email confirmation.
+
+A23. They confirm the creation of the account (18) after being asked to do 
+     so in the email received.
+     R:
+     1. User instance is created.
+        1.1. User.gen_username() generates a temporary username based on 
+              the instance id.
+     2. Something related to attaching cookie data to the created User 
+        instance happens.
+        NOTE: the specifics are yet to be learned.
+        2.1. Entries in all database table that are were related to the 
+             user in their unauthenticated state, should be updated with
+             the authenticated user data. These will include Cart, Order,
+             Like, and Shipment, as well as not yet existing models.
+     3. A redirection to the My Cart page happens.
+     4. CartView now can recalculate prices to their wholesale versions.
+        TODO: implement the mechanics. I think it'll require specifying 
+              prices for different quantities. This could be implemented by
+              creating a WholesalePrice model with a Many-to-One relation-
+              ship to the Product model.
+
+A24. From 19: Or they might've got an account already so they decide to 
+     click on the `Already have an account` button (19).
+     R:
+     1. The FastAuthView retrieves data from request.GET that would tell it
+        which template to use. And this data tells it to show a sign-in form
+        instead of the sign-up form.
+     2. The template that conjures up the form receives this information and
+        displays the right form.
+
+A25. They provide the credentials (20).
+     R:
+     1. SignInView, or whatever manages this responsibility, validates the
+        credentials.
+     2. Redirection to My Cart occurs.
+
+A26. From 19: the user notices a `people also buy` block that shows items
+     that people tend to buy together with the item in the cart. The user
+     decides to click on the `Add to cart` button (21).
+     R: 
+     1. CartView adds the corresponding Product to the Cart.
+     2. CartView creates an Addition instance.
+
+A27. But then they see that the mininum order quantity is too big and delete the item from 
+     the cart (22).
+     R:
+     1. CartView deletes the Addition instance.
+     2. CartView deletes the Product from the Cart.
+
+A27. On the order page, an unauthenticated user would enter a purchaser's
+     full name and email and a receiver's full name and phone number (23).
+     R:
+     1. Data provided by the user is validated.
+     2. The validated data is stored in the Order model.
+        2.1. User data is memorized but not yet saved because saving it
+             to database requires user's consent which is asked for on 
+             later steps of order creation. Only then, the data will be 
+             saved in the database. 
+             NOTE: I suspect this might require a child of AnonymousUser
+                   that's got email and maybe phone number specified but
+                   not the password. If such a user ever creates an
+                   account with the same data, this AnonymousUser child 
+                   will be replaced with a regular User.
+
+A28. If those were the same people, the user would mark the `Data for the 
+     purchaser and the receiver are the same` flag (24).
+     R:
+     1. OrderCreationStepOneView (or something with a simpler name) fills out
+        the receiver part of the view automatically, except for the phone 
+        field.      
+
+A28. They click on the `Next step` button (25). They will be prompted to 
+     choose a delivery method (shipment vs pick-up).
+     R:
+     1. OrderCreationStepTwoView uses a template that provides the user a 
+        tool for sending POST data to the server, that will affect the value
+        of Order.shipped boolean field.
+
+A29.1. A user could pick the shipment (26).
+       R:
+       1. OrderCreationStepTwoView retrieves data from request.POST to change
+          the value of Order.shipped accordingly.
+       2. The view switches to a template that prompts the user to provide the
+          address to ship goods to.
+          2.1. The template checks if the user is authenticated or not and 
+               displays a `save address` button in case they are.
+
+A29.2. They could provide a destination address (27) after being prompted to.
+       R:
+       1. OrderCreationStepThreeView retrieves data from request.POST and puts
+          it into Order.shipment_address.
+          NOTE: Keep in mind that in the future, storing addresses may require
+                creation of a standalone model with separate fields for city, 
+                street, apt, etc.
+                It can also become a part of a graph-like structure or a model
+                that stores distances from a sending point to a shipment 
+                address, whatever the reason to do this.
+
+A29.3. An authenticated user could save the address (28) into their profile.
+       R:
+       1. OrderCreationStepThreeView creates a Shipment instance that connects
+          the address data from Order.shipment_address with the user data.
+
+A29.4. Then they would click on the `Next step` button (29).
+       R:
+       1. OrderCreationStepFourView interacts with the transporting companies 
+          sites APIs to retrieve delivery prices based on the shipment_address
+          and other relevant data. It handles connection errors and data being
+          incomplete because of it.
+       2. A corresponding template renders the page with the transporting 
+          company names and retrieved prices, if any, in a form that prompts
+          the user to choose a single option before going to the next step.
+
+A29.5. And then they would choose a transporting company (30).
+       R:
+       1. OrderCreationStepFourView connects an Order instance to a 
+          TransportingCompany model instance.
+          TODO: create the TransportingCompany model.
+
+A30. They could choose to pay right away and do so on the next step (which
+     I'll come back to later) or choose to pay at the time of receiving the
+     purchased goods (31), whether those were shipped or picked up.
+     R:
+     1. OrderConfirmedView uses Order.amount() method to tell a dedicated
+        template what figure to display as the total cost of the order 
+        (including the shipment).
+     2. Product.quantity is adjusted for all products in the order.
+        TODO: understand implications of a user choosing to pay at the point
+              of delivery such that how the company receives payment and how
+              the site knows when the order is paid or when the payment is 
+              received (likely the former is what the site should know).
+
+A31. On the other hand, a user may choose the pick-up method (32)(in which
+     case, A29 is not relevant).
+     R:
