@@ -177,6 +177,11 @@ class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     products = models.ManyToManyField(Product, through="OrderDetail")
 
+    receiver = models.CharField(max_length=50)
+    # TODO:
+    #   -   create a PhoneField as a subclass of MultiValueField.
+    #   -   add receiver_phone field to Order.
+
     # A user can add shipment details beforehand and choose one of them
     # when filling out order details.
     # Or they can add shipment details right when filling out order
@@ -229,8 +234,7 @@ class Order(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        # return f"Made by User"
-        return f"Made by {self.user}"
+        return f"Created by {self.user.username}"
 
 
 class OrderDetail(models.Model):
