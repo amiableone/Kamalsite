@@ -20,13 +20,13 @@ A1. A person visits (1) the site.
     2. Something like storing cookie data happens.
        TODO: learn how to do this.
 
-A2. They choose from the list of categories (2) in the filter block.
+A2. They visit the catalog and choose from the list of categories (2) in the
+    filter block.
     R:
-    NOTE: A2 assumes the filter block is built in the catalog page whereas it'd
-          be probably better if it appears from the left side after a user 
-          clicks on some `Filter` button.
-    1. Not sure if anything particular happens. It's probably a simple html
-       form that sends the POST data after being confirmed (see A3).
+    NOTE: Make the form slide from the left side with a click on some `Filter`
+          button.
+    1. When entering the catalog, CatalogView renders the unbound filter form.
+       1.1. 									<-------- !
 
 A3. They click on `confirm` (3) to confirm their choice.
     R:
@@ -37,10 +37,12 @@ A3. They click on `confirm` (3) to confirm their choice.
        Product.objects.filter(...).
     4. The queryset is supplied to a dedicated template that does its job.
 
-A4. They see a catalog that lists products from chosen categories.
+A4. The catalog is updated to only include products from the chosen categories.
 A5. They like one of the products (4).
-    NOTE: a like acts as a bookmark. As I understand it, this like will be 
+    NOTE: A like acts as a bookmark. As I understand it, this like will be
           discarded as soon as the cookies of this anonymous user are deleted.
+          Is a post request sent in some way other than through a form in this	<-------- !
+          case?
     R:
     1. CatalogView retrieves user, product data from request.POST to create a
        Like instance or to set its liked to True if it already exists.
@@ -60,7 +62,7 @@ A7. They go to the Bookmarks section (5).
 
 A8. They delete one of the products from bookmarks (6).
     R:
-    1. The client sends a POST request.
+    1. The client sends a POST (or DELETE) request.
     2. BookmarksView retrieves data from POST request.
     3. BookmarksView gets a corresponding Like object and sets its liked to 
        False.
@@ -81,12 +83,10 @@ A9. They click on one of the products (7).
             of users).
        2.2. These are supplied to a dedicated template that constructs the 
             page.
-    3. A Visit model instance is created that connects user, product, date, and
-       maybe other data related to each visit.
-       TODO: create the Visit model.
-             NOTE: the model should probably have a unique constraint on user-
-                   product combination within a certain time frame (e.g. a day
-                   or an hour).
+    NOTE: Do sessions store information on visits of certain pages by users?
+          If the fact of a product page being visited is stored with a purpose
+          of tracking product popularity, is it still ok to send GET requests
+          when users visit them instead of POST?				<-------- !
 
 A10. The user clicks on the `Add to cart` button (8).
      R:
@@ -165,7 +165,7 @@ A17. So let's say the user removes a mark from one of the products (12).
              sets its ready_to_order to False.
         2.2. CartView updates the context with a new value that CartView.
              amount() returns.
-     3. The `My cart` panel now display an updated total price.
+     3. The `My cart` panel now displays an updated total price.
         TODO: I suspect this can be achieved using GET requests and leaving all
               the computations to the template at this point. Find this out - 
               NOT DONE.
@@ -303,7 +303,7 @@ A26.1. And then click on the `X` button (22), satisfied with the preview.
 
 A27. A user could delete an item from the cart (23).
      R:
-     1. The client sends a POST request.
+     1. The client sends a POST request (or DELETE).
      2. CartView retrieves product.id from request.POST.
         2.1. CartView retrieves a corresponding product using get().
         2.2. CartView runs `cart.products.remove(product)`.

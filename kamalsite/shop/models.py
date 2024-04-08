@@ -55,7 +55,7 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if self.min_order_quantity is None:
-            return # Can't save without specifying min_order
+            return  # Can't save without specifying min_order
 
         super().save(*args, **kwargs)
 
@@ -94,9 +94,16 @@ class Like(models.Model):
         return f"{self.user.username} liked {self.product}"
 
 
+class CategoryType(models.Model):
+    name = models.CharField(
+        max_length=50,
+        help_text="e.g. type of furniture, colour, size, etc.",
+    )
+
+
 class Category(models.Model):
     name = models.CharField(max_length=50)
-    description = models.CharField(max_length=150)
+    ctg_type = models.ForeignKey(CategoryType, on_delete=models.CASCADE)
     parent_category = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
