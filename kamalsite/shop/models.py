@@ -18,7 +18,6 @@ class Product(models.Model):
     name = models.CharField(max_length=75)
     description = models.TextField()
     sku = models.PositiveBigIntegerField(unique=True)
-    colour = models.CharField(max_length=30)
     price = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -34,10 +33,7 @@ class Product(models.Model):
         decimal_places=2,
     )
 
-    # Specify at least one min_order parameter.
-    # `quantity` in units and `amount` in monetary terms.
     min_order_quantity = models.DecimalField(
-        null=True,
         max_digits=12,
         decimal_places=2,
     )
@@ -80,7 +76,7 @@ class Like(models.Model):
         on_delete=models.CASCADE,
         related_name="liked_by",
     )
-    liked = models.BooleanField(default=True)
+    liked = models.BooleanField(default=False)
 
     class Meta:
         constraints = [

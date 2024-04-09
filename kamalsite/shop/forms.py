@@ -1,25 +1,23 @@
 from django import forms
 
-from .models import Category
+from .models import Category, Like
 
-# TODO:
-#   -   Create these forms:
-#       -   For filtering products in the catalog,
-#       -   For sorting products in the catalog,
-#       -   For adding a product to cart,
-#       -   For liking/disliking a product,
-#           - Use sessions to disallow repeated likes, dislikes, additions
-#       -   For deleting products from cart,
-#       -   For splitting products in cart,
-#       -   For changing quantities of products in cart,
-#           -   All of these operations with products in cart should be
-#               preferrably done in a way that allows for recalculation of
-#               the total price displayed right in the template (without
-#               overhead of additional post requests).
-#       -   For creating orders (e.g. by clicking on 'Buy' in a cart),
-#       -   For filling out order details,
-#           -   (Specify details of what forms are required here),
-#       -
+# TODO. Create these forms:
+#   -   For filtering products in the catalog - DONE,
+#   -   For sorting products in the catalog,
+#   -   For adding a product to cart,
+#   -   For liking/disliking a product,
+#       - Use sessions to disallow repeated likes, dislikes, additions
+#   -   For deleting products from cart,
+#   -   For splitting products in cart,
+#   -   For changing quantities of products in cart,
+#       -   All of these operations with products in cart should be
+#           preferrably done in a way that allows for recalculation of
+#           the total price displayed right in the template (without
+#           overhead of additional post requests).
+#   -   For creating orders (e.g. by clicking on 'Buy' in a cart),
+#   -   For filling out order details,
+#       -   (Specify details of what forms are required here),
 
 
 class CategoryFilterForm(forms.Form):
@@ -27,7 +25,7 @@ class CategoryFilterForm(forms.Form):
     fields for different ctg_type."""
 
     # Find out how to declare fields dynamically based on existing ctg_type
-    # values. Using setattr in overridden __init__ doesn't create the fields.
+    # values. Using setattr in __init__ doesn't create the fields.
     colour = forms.ModelMultipleChoiceField(
         queryset=Category.objects.filter(ctg_type="colour"),
         to_field_name="name",
@@ -37,6 +35,22 @@ class CategoryFilterForm(forms.Form):
         to_field_name="name",
     )
 
+    # TODO. Add these fields:
+    #   -   RangeFloat or RangeDecimal (custom field),
+    #   -
+
     # template_name is a property returning the value of form_template_name
     # of the renderer. It may be overridden like this:
     # template_name = "catalog_filter_snippet.html"
+
+
+class LikeForm(forms.ModelForm):
+    class Meta:
+        model = Like
+        fields = ["user", "product", "liked"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO:
+        #   -   Hide fields for user and product (they will be rendered with
+        #       initial data based on who likes what),
