@@ -94,16 +94,17 @@ class Like(models.Model):
         return f"{self.user.username} liked {self.product}"
 
 
-class CategoryType(models.Model):
-    name = models.CharField(
-        max_length=50,
-        help_text="e.g. type of furniture, colour, size, etc.",
-    )
-
-
 class Category(models.Model):
+    # TODO:
+    #   -   It may make sense to create subclasses of this model for each
+    #       category type. But then there would have to be a way of creating
+    #       such subclasses from the admin site or else Erika wouldn't be able
+    #       to create new types of categories.
+    ctg_type = models.CharField(
+        max_length=50,
+        help_text="e.g. size, colour, furniture type, etc.",
+    )
     name = models.CharField(max_length=50)
-    ctg_type = models.ForeignKey(CategoryType, on_delete=models.CASCADE)
     parent_category = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,

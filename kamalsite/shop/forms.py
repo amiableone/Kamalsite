@@ -1,10 +1,11 @@
 from django import forms
 
-from .models import CategoryType, Category
+from .models import Category
 
 # TODO:
 #   -   Create these forms:
 #       -   For filtering products in the catalog,
+#       -   For sorting products in the catalog,
 #       -   For adding a product to cart,
 #       -   For liking/disliking a product,
 #           - Use sessions to disallow repeated likes, dislikes, additions
@@ -21,23 +22,21 @@ from .models import CategoryType, Category
 #       -
 
 
-class CategoryFilterForm(forms.ModelForm):
+class CategoryFilterForm(forms.Form):
     """A form for selecting categories defined in Category with separate
     fields for different ctg_type."""
-    def __init__(self, *args, **kwargs):
-        # set fields dynamically and hope this will work.
-        ctg_types = CategoryType.objects.all()
-        for ctg_type in ctg_types:
-            setattr(
-                self,
-                ctg_type.name,
-                forms.ModelMultipleChoiceField(
-                    queryset=Category.objects.filter(ctg_type=ctg_type),
-                    to_field_name="name",
-                )
-            )
-        super().__init__(*args, **kwargs)
 
-    # template_name is a property returning the value of
-    # form_template_name of the renderer. It may be overridden like this:
+    # Find out how to declare fields dynamically based on existing ctg_type
+    # values. Using setattr in overridden __init__ doesn't create the fields.
+    colour = forms.ModelMultipleChoiceField(
+        queryset=Category.objects.filter(ctg_type="colour"),
+        to_field_name="name",
+    )
+    size = forms.ModelMultipleChoiceField(
+        queryset=Category.objects.filter(ctg_type="size"),
+        to_field_name="name",
+    )
+
+    # template_name is a property returning the value of form_template_name
+    # of the renderer. It may be overridden like this:
     # template_name = "catalog_filter_snippet.html"
