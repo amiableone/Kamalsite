@@ -21,23 +21,30 @@ from .models import Category, Like
 
 
 class CategoryFilterForm(forms.Form):
-    """A form for selecting categories defined in Category with separate
-    fields for different ctg_type."""
+    """
+    A form for selecting categories defined in Category
+    with separate fields for different ctg_type.
+    """
 
     # Find out how to declare fields dynamically based on existing ctg_type
     # values. Using setattr in __init__ doesn't create the fields.
     colour = forms.ModelMultipleChoiceField(
         queryset=Category.objects.filter(ctg_type="colour"),
         to_field_name="name",
+        widget=forms.CheckboxSelectMultiple,
     )
     size = forms.ModelMultipleChoiceField(
         queryset=Category.objects.filter(ctg_type="size"),
         to_field_name="name",
+        widget=forms.CheckboxSelectMultiple,
     )
 
     # TODO. Add these fields:
-    #   -   RangeFloat or RangeDecimal (custom field),
-    #   -
+    #   -   RangeFloat or RangeDecimal (custom field) for specifying price
+    #       interval limits,
+    #   -   Customize ModelMultipleChoiceField or SelectMultiple to allow for
+    #       a neutral choice in addition to including/excluding. An alternative
+    #       would be to create a separate form for excluding categories,
 
     # template_name is a property returning the value of form_template_name
     # of the renderer. It may be overridden like this:
@@ -47,10 +54,8 @@ class CategoryFilterForm(forms.Form):
 class LikeForm(forms.ModelForm):
     class Meta:
         model = Like
-        fields = ["user", "product", "liked"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # TODO:
-        #   -   Hide fields for user and product (they will be rendered with
-        #       initial data based on who likes what),
+        fields = ["user", "product"]
+        widgets = {
+            "user": forms.HiddenInput,
+            "product": forms.HiddenInput,
+        }
