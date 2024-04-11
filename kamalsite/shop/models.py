@@ -10,7 +10,7 @@ from myauth.models import User
 #   -   Track popularity of products based on number of vists of product
 #       pages, likes, number of purchases and purchasers, and purchase
 #       amounts.
-#   -   Price, popularity, novelty, and the SKU will be used as parameters
+#   -   Price, popularity, and novelty will be used as parameters
 #       for users to sort products by on the site.
 #       -   Hence, add an on_sale_since field to Product.
 
@@ -18,25 +18,24 @@ class Product(models.Model):
     name = models.CharField(max_length=75)
     description = models.TextField()
     sku = models.PositiveBigIntegerField(unique=True)
-    price = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-    )
-    unit_measure = models.CharField(
-        max_length=30,
-        default="units",
-    )
+
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    unit_measure = models.CharField(max_length=30, default="units")
     quantity = models.DecimalField(
         "available quantity",
         default=0,
         max_digits=12,
         decimal_places=2,
     )
+    min_order_quantity = models.DecimalField(max_digits=12, decimal_places=2)
 
-    min_order_quantity = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
+    # Use date_created to sort by novelty and in_production to remove from the
+    # catalog when quantity reaches zero.
+    date_created = models.DateField(
+        default=datetime.date.today,
+        help_text="when first appeared in the catalog",
     )
+    in_production = models.BooleanField(default=True)
 
     collection = models.ForeignKey(
         "Collection",
@@ -62,7 +61,7 @@ class Product(models.Model):
         return self.min_order_quantity * self.price
 
     def __str__(self):
-        return f"{self.name.title()}"
+        return f"{self.name}"
 
 
 class Like(models.Model):
@@ -135,6 +134,9 @@ def discount_end_date():
 
 class Discount(models.Model):
     reason = models.CharField(max_length=50)
+    # TODO:
+    #   -   Replace with a custom field that corresponds to percentage values
+    #       in postgresql.
     percent = models.PositiveSmallIntegerField()
     seasonal = models.BooleanField(default=False)
     start = models.DateField(default=datetime.date.today)
@@ -156,23 +158,22 @@ class Cart(models.Model):
     products = models.ManyToManyField(Product, through="Addition")
 
     def __str__(self):
-        return f"Owned by {self.user}"
+        return f"owner={self.user}"
 
 
 class Addition(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
-    date_added = models.DateField(auto_now=True)
 
     # When Addition instance is created, it should be provided
     # min_order_quantity of the product it relates to as default.
     quantity = models.DecimalField(max_digits=12,  decimal_places=2)
 
-    # ready_to_order is for identifiyng products create an order with.
+    # ready_to_order is for checking products to put in a confirmed order.
     ready_to_order = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.product} added to {self.cart}"
+        return f"{self.product} in {self.cart}"
 
 
 class Order(models.Model):
@@ -183,8 +184,7 @@ class Order(models.Model):
 
     receiver = models.CharField(max_length=50)
     # TODO:
-    #   -   create a PhoneField as a subclass of MultiValueField.
-    #   -   add receiver_phone field to Order.
+    #   -   Add receiver_phone field.
 
     # A user can add shipment details beforehand and choose one of them
     # when filling out order details.
@@ -238,7 +238,7 @@ class Order(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Created by {self.user.username}"
+        return f"creator={self.user}"
 
 
 class OrderDetail(models.Model):
@@ -251,7 +251,7 @@ class OrderDetail(models.Model):
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
 
     def __str__(self):
-        return f"Details of {self.order}"
+        return f"for {self.order}"
 
 
 class Purchase(models.Model):
@@ -267,20 +267,9 @@ class Purchase(models.Model):
 
 
 class Shipment(models.Model):
-    """Shipment address to ship goods to. Can be created only for
+    """
+    Shipment address to ship goods to. Can be created only for
     authenticated users.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     shipment_address = models.CharField(max_length=300)
-
-
-class Defect(models.Model):
-    """Model for writing-off bad Products."""
-    description = models.CharField(max_length=100)
-    date = models.DateField(auto_now_add=True)
-    product = models.ForeignKey(
-        Product,
-        on_delete=models.SET_NULL,
-        null=True,
-    )
-    quantity = models.DecimalField(max_digits=12, decimal_places=12)
