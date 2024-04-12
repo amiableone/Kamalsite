@@ -1,6 +1,7 @@
 import datetime
 
 from django.db import models
+
 from myauth.models import User
 
 
@@ -158,19 +159,30 @@ class Cart(models.Model):
     products = models.ManyToManyField(Product, through="Addition")
 
     def __str__(self):
-        return f"owner={self.user}"
+        return f"{self.user}'s cart"
 
 
 class Addition(models.Model):
+    """
+    A model connecting a certain product to a certain cart.
+    """
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
 
-    # When Addition instance is created, it should be provided
-    # min_order_quantity of the product it relates to as default.
+    # quantity is set to related product min_order_quantity
+    # when created in a corresponding form.
     quantity = models.DecimalField(max_digits=12,  decimal_places=2)
 
     # ready_to_order is for checking products to put in a confirmed order.
     ready_to_order = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "cart"],
+                name="unique_product_cart",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.product} in {self.cart}"

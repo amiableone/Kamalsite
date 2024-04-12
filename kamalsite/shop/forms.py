@@ -160,11 +160,68 @@ class LikeForm(forms.ModelForm):
 
 
 class AdditionForm(forms.ModelForm):
+    """
+    Add products to cart (and create Addition instances) with this form.
+    """
+
+    class Meta:
+        model = Addition
+        fields = ["cart", "product"]
+        widgets = {
+            "cart": forms.HiddenInput,
+            "product": forms.HiddenInput,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pass initial values to these fields from the corresponding view.
+        self.fields["cart"].disabled = True
+        self.fields["product"].disabled = True
+
+    def save(self, commit=True):
+        addition = super().save(commit=False)
+        addition.quantity = addition.product.min_order_quantity
+        if commit:
+            addition.save()
+        return addition
+
+
+class AdditionQuantityForm(forms.ModelForm):
+    """
+    Change quantity of a product in cart (specified in Addition.quantity)
+    with this form.
+    """
+
     class Meta:
         model = Addition
         fields = ["cart", "product", "quantity"]
         widgets = {
             "cart": forms.HiddenInput,
             "product": forms.HiddenInput,
-            "quantity": forms.HiddenInput,
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pass initial values to these fields from the corresponding view.
+        self.fields["cart"].disabled = True
+        self.fields["product"].disabled = True
+
+    def clean(self):
+        data = self.cleaned_data
+        product = self.instance.product
+        available = product.quantity
+        minimum = product.min_order_quantity
+        if available < data["quantity"] < minimum:
+            message = _("Please limit your order quantity to %(available)s "
+                        "%(units)s (available) or order %(minimum)s %(units)s "
+                        "(minimum order quantity).")
+            raise ValidationError(
+                message,
+                code="invalid_quantity",
+                params={
+                    "available": available,
+                    "minimum": minimum,
+                    "units": product.unit_measure,
+                }
+            )
+        return data
