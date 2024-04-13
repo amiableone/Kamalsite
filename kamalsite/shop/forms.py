@@ -13,7 +13,7 @@ from .models import Addition, Category, Like, Product
 #       -   For liking/disliking a product - DONE,
 #           -   Use sessions to disallow repeated likes/dislikes, additions
 #               (this will be done in views).
-#       -   For adding a product to cart,
+#       -   For adding a product to cart - DONE,
 #       -   For deleting products from cart,
 #       -   For adding a 'leave in cart after purchase' checkbox to products
 #           in cart,
@@ -160,10 +160,6 @@ class LikeForm(forms.ModelForm):
 
 
 class AdditionForm(forms.ModelForm):
-    """
-    Add products to cart (and create Addition instances) with this form.
-    """
-
     class Meta:
         model = Addition
         fields = ["cart", "product"]
@@ -178,6 +174,12 @@ class AdditionForm(forms.ModelForm):
         self.fields["cart"].disabled = True
         self.fields["product"].disabled = True
 
+
+class CreateAdditionForm(AdditionForm):
+    """
+    Add products to cart (and create Addition instances) with this form.
+    """
+
     def save(self, commit=True):
         addition = super().save(commit=False)
         addition.quantity = addition.product.min_order_quantity
@@ -186,27 +188,22 @@ class AdditionForm(forms.ModelForm):
         return addition
 
 
-class AdditionQuantityForm(forms.ModelForm):
+class AdditionQuantityForm(AdditionForm):
     """
-    Change quantity of a product in cart (specified in Addition.quantity)
-    with this form.
+    Change quantity of a product in cart (specified in Addition.quantity).
+    Initiate with an Addition instance.
     """
 
-    class Meta:
-        model = Addition
-        fields = ["cart", "product", "quantity"]
-        widgets = {
-            "cart": forms.HiddenInput,
-            "product": forms.HiddenInput,
-        }
+    class Meta(AdditionForm.Meta):
+        fields = AdditionForm.Meta.fields + ["quantity"]
 
     def __init__(self, *args, **kwargs):
+        if not "instance" in kwargs:
+            raise KeyError("Provide instance to __init__")
         super().__init__(*args, **kwargs)
-        # Pass initial values to these fields from the corresponding view.
-        self.fields["cart"].disabled = True
-        self.fields["product"].disabled = True
 
     def clean(self):
+        super().clean()
         data = self.cleaned_data
         product = self.instance.product
         available = product.quantity
@@ -225,3 +222,16 @@ class AdditionQuantityForm(forms.ModelForm):
                 }
             )
         return data
+
+
+class DeleteAdditionForm(AdditionForm):
+    """
+    Delete product from cart (by setting Addition.quantity to zero).
+    """
+
+    def save(self, commit=True):
+        addition = super().save(commit=False)
+        addition.quantity = 0
+        if commit:
+            addition.save()
+        return addition
