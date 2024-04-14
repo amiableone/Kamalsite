@@ -4,7 +4,14 @@ from django.core.exceptions import ValidationError
 from django.db.models import Min, Max, TextChoices
 from django.utils.translation import gettext_lazy as _
 
-from .models import Addition, Category, Like, Product
+from .models import (
+    Addition,
+    Category,
+    Like,
+    Order,
+    OrderDetail,
+    Product,
+)
 
 # TODO.
 #   -   Create these forms:
@@ -14,17 +21,15 @@ from .models import Addition, Category, Like, Product
 #           -   Use sessions to disallow repeated likes/dislikes, additions
 #               (this will be done in views).
 #       -   For adding a product to cart - DONE,
-#       -   For deleting products from cart,
-#       -   For adding a 'leave in cart after purchase' checkbox to products
-#           in cart,
-#       -   For changing quantities of products in cart,
+#       -   For changing the quantity of a product in cart - DONE,
+#       -   For deleting products from cart - DONE,
 #           -   All of these operations with products in cart should be
 #               preferrably done in a way that allows for recalculation of
 #               the total price displayed right in the template (without
 #               overhead of additional post requests).
 #       -   For creating orders (e.g. by clicking on 'Buy' in a cart),
 #       -   For filling out order details,
-#           -   (Specify details of what forms are required here),
+#           -   (Specify details of what fields are required here),
 #   -   Create a bug report for:
 #       -   Product.objects.filter(price__contained_by=nr) - where nr is a
 #           NumericRange instance - raises django.core.exceptions.FieldError:
@@ -158,6 +163,11 @@ class LikeForm(forms.ModelForm):
             "product": forms.HiddenInput,
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["user"].disabled = True
+        self.fields["product"].disabled = True
+
 
 class AdditionForm(forms.ModelForm):
     class Meta:
@@ -169,6 +179,8 @@ class AdditionForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        if "initial" not in kwargs and "instance" not in kwargs:
+            raise TypeError("Either initial or instance argument is required")
         super().__init__(*args, **kwargs)
         # Pass initial values to these fields from the corresponding view.
         self.fields["cart"].disabled = True
@@ -197,31 +209,30 @@ class AdditionQuantityForm(AdditionForm):
     class Meta(AdditionForm.Meta):
         fields = AdditionForm.Meta.fields + ["quantity"]
 
-    def __init__(self, *args, **kwargs):
-        if not "instance" in kwargs:
-            raise KeyError("Provide instance to __init__")
-        super().__init__(*args, **kwargs)
-
     def clean(self):
         super().clean()
         data = self.cleaned_data
         product = self.instance.product
         available = product.quantity
         minimum = product.min_order_quantity
+        params = {
+            "available": available,
+            "minimum": minimum,
+            "units": product.unit_measure,
+        }
         if available < data["quantity"] < minimum:
-            message = _("Please limit your order quantity to %(available)s "
-                        "%(units)s (available) or order %(minimum)s %(units)s "
-                        "(minimum order quantity).")
-            raise ValidationError(
+            if available:
+                message = _("Can't order less than %(minimum)s %(units)s and more "
+                            "than %(available)s %(units)s of this product.")
+            else:
+                message = _("Can't order less than %(minimum)s %(units)s of this "
+                            "product when available quantity is 0.")
+            error = ValidationError(
                 message,
                 code="invalid_quantity",
-                params={
-                    "available": available,
-                    "minimum": minimum,
-                    "units": product.unit_measure,
-                }
-            )
-        return data
+                params=params,
+        )
+            self.add_error("quantity", error)
 
 
 class DeleteAdditionForm(AdditionForm):
@@ -235,3 +246,34 @@ class DeleteAdditionForm(AdditionForm):
         if commit:
             addition.save()
         return addition
+
+
+class OrderForm(forms.ModelForm):
+    class Meta:
+        model = Order
+        fields = [
+            "user",
+            "products",
+            "purchaser",
+            "purchaser_email",
+        ]
+        widgets = {
+            "user": forms.HiddenInput,
+            "products": forms.HiddenInput,
+        }
+
+    def __init__(self, *args, **kwargs):
+        if "instance" not in kwargs:
+            # Create Order instance beforehand from a view along with
+            # corresponding OrderDetail instances.
+            raise TypeError("instance argument is required")
+        user = kwargs["instance"].user
+        if user:
+            initial = {
+                "purchaser": user.first_name + user.last_name,
+                "purchaser_email": user.email,
+            }
+            kwargs["initial"] = initial
+        super().__init__(*args, **kwargs)
+        self.fields["user"].disabled = True
+        self.fields["products"].disabled = True

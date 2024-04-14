@@ -189,29 +189,40 @@ class Addition(models.Model):
 
 
 class Order(models.Model):
-    # Clients should be able to create orders from Cart
-    # as well as directly from a Product page.
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # TODO: Replace on_delete with a placeholder deleted_user.
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     products = models.ManyToManyField(Product, through="OrderDetail")
 
-    receiver = models.CharField(max_length=50)
+    # Fill out purchaser and purchaser_email automatically with user data or
+    # manually if user is null.
     # TODO:
-    #   -   Add receiver_phone field.
+    #   -   Customize fields for purchaser, purchaser_email, receiver, and
+    #       receiver_email.
+    # as_individual=True if user.organization is not None.
+    as_individual = models.BooleanField(default=False)
+    # purchaser is the name of an organization if as_individual=True
+    # and user.name otherwise.
+    purchaser = models.CharField(max_length=50)
+    purchaser_email = models.CharField(max_length=50)
+    # receiver is user.name or any other name specified by the user.
+    receiver = models.CharField(max_length=50)
+    receiver_phone = models.CharField(max_length=50)
 
-    # A user can add shipment details beforehand and choose one of them
-    # when filling out order details.
-    # Or they can add shipment details right when filling out order
-    # details, in which case they can save these details which will attach
-    # them to their profile by creating a Shipment instance based on the
-    # shipment_address value.
+    # A user can add shipment details beforehand and choose one of them when
+    # filling out order details or create and save one right in the process.
     shipped = models.BooleanField(default=False)
-    shipment_address = models.CharField(max_length=300)
+    shipment_address = models.ForeignKey(
+        "Shipment",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
     shipment_cost = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=0,
     )
     date_created = models.DateTimeField(auto_now_add=True)
+    # Validate that confirmed=True only when purchaser/receiver data are filled.
     confirmed = models.BooleanField(default=False)
 
     # TODO:
@@ -222,14 +233,14 @@ class Order(models.Model):
     #       no guarantees that the request will be granted are implied.
 
     def amount(self):
-        """Compute total amount of the order and return a tuple of the
-        order price and the cost of shipment.
+        """
+        Return total monetary amount of the order.
         """
         total = 0
-        for detail in self.orderdetail_set:
-            element = detail.product.price * detail.quantity_ordered
-            total += element
-        return total, self.shipment_cost
+        for detail in self.order_details.all():
+            per_product = detail.product.price * detail.quantity
+            total += per_product
+        return total
 
     def make_purchase(self):
         if self.confirmed and not hasattr(self, "purchase"):
@@ -242,15 +253,14 @@ class Order(models.Model):
         except Purchase.DoesNotExist:
             return False
 
-    def save(self, *args, **kwargs):
-        for detail in self.orderdetail_set:
-            if detail.quantity < detail.product.min_order_quantity:
-                return
-
-        super().save(*args, **kwargs)
-
     def __str__(self):
-        return f"creator={self.user}"
+        if self.pk:
+            products = [p for p in self.products.all()]
+            if self.user:
+                return f"{self.user} ordered {products}"
+            return f"Anonym ordered {products}"
+        else:
+            return "Unsaved order"
 
 
 class OrderDetail(models.Model):
@@ -259,8 +269,22 @@ class OrderDetail(models.Model):
         on_delete=models.CASCADE,
         null=True,
     )
-    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="order_details",
+    )
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "order"],
+                name="unique_product_order",
+            )
+        ]
+    # Don't override save() as bulk_create is called when an Order instance
+    # is created.
 
     def __str__(self):
         return f"for {self.order}"
@@ -284,4 +308,5 @@ class Shipment(models.Model):
     authenticated users.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # TODO: Customize shipment_address field.
     shipment_address = models.CharField(max_length=300)
