@@ -189,7 +189,7 @@ class Addition(models.Model):
 
 
 class Order(models.Model):
-    # TODO: Replace on_delete with a placeholder deleted_user.
+    # TODO: Set on_delete to a callable returning deleted_user placeholder.
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     products = models.ManyToManyField(Product, through="OrderDetail")
 
@@ -203,7 +203,7 @@ class Order(models.Model):
     # purchaser is the name of an organization if as_individual=True
     # and user.name otherwise.
     purchaser = models.CharField(max_length=50)
-    purchaser_email = models.CharField(max_length=50)
+    purchaser_email = models.EmailField()
     # receiver is user.name or any other name specified by the user.
     receiver = models.CharField(max_length=50)
     receiver_phone = models.CharField(max_length=50)
@@ -287,7 +287,7 @@ class OrderDetail(models.Model):
     # is created.
 
     def __str__(self):
-        return f"for {self.order}"
+        return f"for order {self.order.pk}"
 
 
 class Purchase(models.Model):

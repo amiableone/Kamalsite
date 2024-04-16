@@ -90,7 +90,7 @@ class PriceRangeField(forms.MultiValueField):
         )
 
     def compress(self, data_list):
-        lo, hi = data_list[0], data_list[1]
+        lo, hi = data_list
         if lo and hi and lo > hi:
             raise ValidationError(
                 "Min price higher than Max price",
@@ -248,32 +248,91 @@ class DeleteAdditionForm(AdditionForm):
         return addition
 
 
-class OrderForm(forms.ModelForm):
+class FullNameWidget(forms.MultiWidget):
+    def __init__(self, attrs=None):
+        widgets = {
+            "last": forms.TextInput,
+            "first": forms.TextInput,
+            "middle": forms.TextInput,
+        }
+        super().__init__(widgets=widgets, attrs=attrs)
+
+    def decompress(self, value):
+        if isinstance(value, str):
+            name = value.split(" ")
+            return  [i for i in name]
+        return [None, None, None]
+
+
+class FullNameField(forms.MultiValueField):
+    """
+    A field for specifying a person's full name.
+    """
+
+    # This field corresponds to a CharField with max_length specidfied.
+    # Until that's replaced with a more appropriate field, this field's
+    # __init__ will accept max_length.
+    def __init__(self, max_length=None, **kwargs):
+        fields = (
+            forms.CharField(
+                max_length=20,
+                error_messages={"incomplete": "Enter the last name."},
+            ),
+            forms.CharField(
+                max_length=20,
+                error_messages={"incomplete": "Enter the first name."},
+            ),
+            forms.CharField(
+                initial=_("Optional"),
+                max_length=20,
+                required=False,
+            ),
+        )
+        super().__init__(
+            fields=fields,
+            require_all_fields=False,
+            widget=FullNameWidget,
+            **kwargs,
+        )
+
+    def compress(self, data_list):
+        last, first, middle = data_list
+        full_name = first, last, middle
+        return " ".join([i for i in full_name if i])
+
+
+class OrderPurchaserForm(forms.ModelForm):
+    """
+    A form for filling out purchaser details of an order.
+    """
+    # Display receiver and receiver_phone as hidden when receiver_as_purchaser
+    # checkbox is checked
+    receiver_is_purchaser = forms.BooleanField(required=False, initial=True)
+
     class Meta:
         model = Order
         fields = [
             "user",
-            "products",
             "purchaser",
             "purchaser_email",
+            "receiver",
+            "receiver_phone",
         ]
+        field_classes = {
+            "purchaser": FullNameField,
+        }
         widgets = {
             "user": forms.HiddenInput,
-            "products": forms.HiddenInput,
         }
 
     def __init__(self, *args, **kwargs):
         if "instance" not in kwargs:
-            # Create Order instance beforehand from a view along with
-            # corresponding OrderDetail instances.
+            # Create Order instance beforehand from a view but don't save it.
             raise TypeError("instance argument is required")
-        user = kwargs["instance"].user
-        if user:
-            initial = {
-                "purchaser": user.first_name + user.last_name,
-                "purchaser_email": user.email,
-            }
-            kwargs["initial"] = initial
+        order = kwargs["instance"]
+        user = order.user
+        if not user.is_anonymous:
+            order.purchaser = user.get_full_name()
+            order.purchaser_email = user.email
         super().__init__(*args, **kwargs)
         self.fields["user"].disabled = True
-        self.fields["products"].disabled = True
