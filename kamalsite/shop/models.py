@@ -169,12 +169,12 @@ class Addition(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
 
-    # quantity is set to related product min_order_quantity
-    # when created in a corresponding form.
+    # quantity is set to related product min_order_quantity when created
+    # from a corresponding form.
     quantity = models.DecimalField(max_digits=12,  decimal_places=2)
 
-    # ready_to_order is for checking products to put in a confirmed order.
-    ready_to_order = models.BooleanField(default=True)
+    # order_now is for specifying which products in cart to order.
+    order_now = models.BooleanField(default=True)
 
     class Meta:
         constraints = [
@@ -183,6 +183,11 @@ class Addition(models.Model):
                 name="unique_product_cart",
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.quantity:
+            self.order_now = False
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.product} in {self.cart}"

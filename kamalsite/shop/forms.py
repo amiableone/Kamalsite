@@ -179,10 +179,7 @@ class AdditionForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        if "initial" not in kwargs and "instance" not in kwargs:
-            raise TypeError("Either initial or instance argument is required")
         super().__init__(*args, **kwargs)
-        # Pass initial values to these fields from the corresponding view.
         self.fields["cart"].disabled = True
         self.fields["product"].disabled = True
 
@@ -203,15 +200,16 @@ class CreateAdditionForm(AdditionForm):
 class AdditionQuantityForm(AdditionForm):
     """
     Change quantity of a product in cart (specified in Addition.quantity).
+    Specify if a product is to be ordered (or kept in cart idly).
     Initiate with an Addition instance.
     """
 
     class Meta(AdditionForm.Meta):
-        fields = AdditionForm.Meta.fields + ["quantity"]
+        fields = AdditionForm.Meta.fields + ["quantity", "order_now"]
 
     def clean(self):
         super().clean()
-        data = self.cleaned_data
+        qty = self.cleaned_data["quantity"]
         product = self.instance.product
         available = product.quantity
         minimum = product.min_order_quantity
@@ -220,7 +218,7 @@ class AdditionQuantityForm(AdditionForm):
             "minimum": minimum,
             "units": product.unit_measure,
         }
-        if available < data["quantity"] < minimum:
+        if available < qty < minimum:
             if available:
                 message = _("Can't order less than %(minimum)s %(units)s and more "
                             "than %(available)s %(units)s of this product.")
@@ -231,21 +229,79 @@ class AdditionQuantityForm(AdditionForm):
                 message,
                 code="invalid_quantity",
                 params=params,
-        )
+            )
+            self.add_error("quantity", error)
+        elif qty <= 0:
+            message = _("Quantity must be positive.")
+            error = ValidationError(
+                message,
+                code="non_positive_quantity",
+                params=params,
+            )
             self.add_error("quantity", error)
 
 
 class DeleteAdditionForm(AdditionForm):
     """
-    Delete product from cart (by setting Addition.quantity to zero).
+    Delete product from cart.
     """
 
     def save(self, commit=True):
         addition = super().save(commit=False)
         addition.quantity = 0
+        addition.order_now = False
         if commit:
             addition.save()
         return addition
+
+
+class CreateOrderForm(forms.ModelForm):
+    """
+    Essentially a buy button.
+    """
+    from_cart = forms.BooleanField(
+        disabled=True,
+        required=False,
+        widget=forms.HiddenInput,
+    )
+    # Display quantity as hidden. Unhide for unbound form with from_cart=False.
+    quantity = forms.DecimalField(required=False)
+
+    class Meta:
+        model = Order
+        fields = ["user"]
+        widgets = {"user": forms.HiddenInput}
+
+    def __init__(self, *args, product, **kwargs):
+        # Provide product=None if from_cart=True.
+        self.product = product
+        super().__init__(*args, **kwargs)
+        self.fields["user"].disabled = True
+
+    def save(self, commit=True):
+        order = super().save(commit=False)
+        order.save()
+        cart = order.user.cart.products.all()
+        if self.fields["from_cart"]:
+            order_now = Addition.objects.filter(product__in=cart, order_now=True)
+            OrderDetail.objects.bulk_create(
+                [
+                    OrderDetail(
+                        order=order,
+                        product=a.product,
+                        quantity=a.quantity,
+                    ) for a in order_now
+                ]
+            )
+        else:
+            OrderDetail.objects.create(
+                order=order,
+                product=self.product,
+                quantity=self.quantity,
+            )
+        # if commit:
+        #     order.save()
+        return order
 
 
 class FullNameWidget(forms.MultiWidget):
@@ -301,13 +357,12 @@ class FullNameField(forms.MultiValueField):
         return " ".join([i for i in full_name if i])
 
 
-class OrderPurchaserForm(forms.ModelForm):
+class OrderForm(forms.ModelForm):
     """
-    A form for filling out purchaser details of an order.
+    A form for filling out order parameters.
     """
-    # Display receiver and receiver_phone as hidden when receiver_as_purchaser
-    # checkbox is checked
-    receiver_is_purchaser = forms.BooleanField(required=False, initial=True)
+    # Control hiddenness of receiver and receiver_phone fields.
+    receiver_is_purchaser = forms.BooleanField(required=False)
 
     class Meta:
         model = Order
@@ -317,6 +372,9 @@ class OrderPurchaserForm(forms.ModelForm):
             "purchaser_email",
             "receiver",
             "receiver_phone",
+            "shipped",
+            "shipment",
+            # shipment_company field is to be included
         ]
         field_classes = {
             "purchaser": FullNameField,
@@ -327,12 +385,28 @@ class OrderPurchaserForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         if "instance" not in kwargs:
-            # Create Order instance beforehand from a view but don't save it.
             raise TypeError("instance argument is required")
         order = kwargs["instance"]
         user = order.user
         if not user.is_anonymous:
-            order.purchaser = user.get_full_name()
+            if user.organization:
+                order.purchaser = user.organization
+                order.receiver = user.get_full_name()
+            else:
+                order.purchaser = user.get_full_name()
             order.purchaser_email = user.email
         super().__init__(*args, **kwargs)
         self.fields["user"].disabled = True
+        self.fields["shipment"].required = False
+        # self.fields["shipment_company"].required = False
+
+    def clean(self):
+        super().clean()
+        shipped = self.cleaned_data["shipped"]
+        shipment = self.cleaned_data["shipment"]
+        if shipped and not shipment:
+            error = ValidationError(
+                message=_("Shipment address is not specified."),
+                code="empty_shipment_address",
+            )
+            self.add_error("shipment", error)
