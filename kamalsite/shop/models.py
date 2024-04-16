@@ -200,8 +200,7 @@ class Order(models.Model):
     #       receiver_email.
     # as_individual=True if user.organization is not None.
     as_individual = models.BooleanField(default=False)
-    # purchaser is the name of an organization if as_individual=True
-    # and user.name otherwise.
+    # purchaser is user.organization if as_individual=False.
     purchaser = models.CharField(max_length=50)
     purchaser_email = models.EmailField()
     # receiver is user.name or any other name specified by the user.
@@ -211,11 +210,16 @@ class Order(models.Model):
     # A user can add shipment details beforehand and choose one of them when
     # filling out order details or create and save one right in the process.
     shipped = models.BooleanField(default=False)
-    shipment_address = models.ForeignKey(
+    shipment = models.ForeignKey(
         "Shipment",
         on_delete=models.SET_NULL,
         null=True,
     )
+    # shipment_company = models.ForeignKey(
+    #     "ShipmentCompany",
+    #     on_delete=models.SET_NULL,
+    #     null=True,
+    # )
     shipment_cost = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -255,7 +259,7 @@ class Order(models.Model):
 
     def __str__(self):
         if self.pk:
-            products = [p for p in self.products.all()]
+            products = [p.name for p in self.products.all()]
             if self.user:
                 return f"{self.user} ordered {products}"
             return f"Anonym ordered {products}"
@@ -287,7 +291,7 @@ class OrderDetail(models.Model):
     # is created.
 
     def __str__(self):
-        return f"for order {self.order.pk}"
+        return f"for {self.product} in Order#{self.order.pk}"
 
 
 class Purchase(models.Model):
