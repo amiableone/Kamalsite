@@ -158,6 +158,12 @@ class Cart(models.Model):
     )
     products = models.ManyToManyField(Product, through="Addition")
 
+    def amount(self):
+        total = 0
+        for a in self.addition_set.filter(order_now=True):
+            total += a.product.price + a.quantity
+        return total
+
     def __str__(self):
         return f"{self.user}'s cart"
 
@@ -208,7 +214,6 @@ class Order(models.Model):
     # purchaser is user.organization if as_individual=False.
     purchaser = models.CharField(max_length=50)
     purchaser_email = models.EmailField()
-    # receiver is user.name or any other name specified by the user.
     receiver = models.CharField(max_length=50)
     receiver_phone = models.CharField(max_length=50)
 
@@ -245,8 +250,7 @@ class Order(models.Model):
         """
         Return quantity of each product.
         """
-        details = self.order_details.all()
-        return [(d.product, d.quantity) for d in details]
+        return [(d.product, d.quantity) for d in self.order_details.all()]
 
     def amount(self):
         """
@@ -254,8 +258,7 @@ class Order(models.Model):
         """
         total = 0
         for detail in self.order_details.all():
-            per_product = detail.product.price * detail.quantity
-            total += per_product
+            total += detail.product.price * detail.quantity
         return total
 
     def make_purchase(self):
@@ -313,7 +316,7 @@ class Purchase(models.Model):
         primary_key=True,
     )
 
-    payment_date = models.DateTimeField(auto_now_add=True)
+    date_created = models.DateTimeField(auto_now_add=True)
     payment_received = models.BooleanField(default=False)
     cancelled = models.BooleanField(default=False)
 

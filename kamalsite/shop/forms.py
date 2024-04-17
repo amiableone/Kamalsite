@@ -27,9 +27,8 @@ from .models import (
 #               preferrably done in a way that allows for recalculation of
 #               the total price displayed right in the template (without
 #               overhead of additional post requests).
-#       -   For creating orders (e.g. by clicking on 'Buy' in a cart),
-#       -   For filling out order details,
-#           -   (Specify details of what fields are required here),
+#       -   For creating orders (e.g. by clicking on 'Buy' in a cart) - DONE,
+#       -   For filling out order details - DONE,
 #   -   Create a bug report for:
 #       -   Product.objects.filter(price__contained_by=nr) - where nr is a
 #           NumericRange instance - raises django.core.exceptions.FieldError:
@@ -189,6 +188,19 @@ class CreateAdditionForm(AdditionForm):
     Add products to cart (and create Addition instances) with this form.
     """
 
+    def __init__(self, *args, **kwargs):
+        try:
+            cart = kwargs["initial"]["cart"]
+            product = kwargs["initial"]["product"]
+            addition = Addition.objects.get(cart=cart, product=product)
+            # Can't save duplicate instance. Hence, existing one has to be provided.
+            kwargs["instance"] = addition
+        except KeyError:
+            raise TypeError("argument initial is required.")
+        except Addition.DoesNotExist:
+            pass
+        super().__init__(*args, **kwargs)
+
     def save(self, commit=True):
         addition = super().save(commit=False)
         addition.quantity = addition.product.min_order_quantity
@@ -246,6 +258,11 @@ class DeleteAdditionForm(AdditionForm):
     Delete product from cart.
     """
 
+    def __init__(self, *args, **kwargs):
+        if not "instance" in kwargs:
+            raise TypeError("instance argument is required.")
+        super().__init__(*args, **kwargs)
+
     def save(self, commit=True):
         addition = super().save(commit=False)
         addition.quantity = 0
@@ -273,10 +290,9 @@ class CreateOrderForm(forms.ModelForm):
         widgets = {"user": forms.HiddenInput}
 
     def __init__(self, *args, product=None, **kwargs):
-        if not kwargs["initial"]["from_cart"]:
-            if not product:
-                raise TypeError("product must be Product object when from_cart=False")
-            self.product = product
+        if not kwargs["initial"]["from_cart"] and not product:
+            raise TypeError("product must be Product object when from_cart=False")
+        self.product = product
         super().__init__(*args, **kwargs)
         if self.product:
             self.fields["quantity"].required = True
@@ -311,7 +327,8 @@ class CreateOrderForm(forms.ModelForm):
                         order=order,
                         product=a.product,
                         quantity=a.quantity,
-                    ) for a in order_now
+                    )
+                    for a in order_now
                 ]
             )
         else:
@@ -397,6 +414,7 @@ class OrderForm(forms.ModelForm):
         ]
         field_classes = {
             "purchaser": FullNameField,
+            "shipped": forms.NullBooleanField,
         }
         widgets = {
             "user": forms.HiddenInput,
@@ -421,11 +439,21 @@ class OrderForm(forms.ModelForm):
 
     def clean(self):
         super().clean()
-        shipped = self.cleaned_data["shipped"]
-        shipment = self.cleaned_data["shipment"]
-        if shipped and not shipment:
+        data = self.cleaned_data
+        if data["shipped"] and not data["shipment"]:
             error = ValidationError(
                 message=_("Shipment address is not specified."),
                 code="empty_shipment_address",
             )
             self.add_error("shipment", error)
+
+    def save(self, commit=True):
+        order = super().save(commit=False)
+        if self.is_valid():
+            # Move this operation to a view or form that manages email
+            # confirmation.
+            order.confirmed = True
+            order.make_purchase()
+        if commit:
+            order.save()
+        return order
