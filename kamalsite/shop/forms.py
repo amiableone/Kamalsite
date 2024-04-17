@@ -227,7 +227,7 @@ class AdditionQuantityForm(AdditionForm):
                             "product when available quantity is 0.")
             error = ValidationError(
                 message,
-                code="invalid_quantity",
+                code="too_low",
                 params=params,
             )
             self.add_error("quantity", error)
@@ -235,7 +235,7 @@ class AdditionQuantityForm(AdditionForm):
             message = _("Quantity must be positive.")
             error = ValidationError(
                 message,
-                code="non_positive_quantity",
+                code="non_positive",
                 params=params,
             )
             self.add_error("quantity", error)
@@ -264,7 +264,7 @@ class CreateOrderForm(forms.ModelForm):
         required=False,
         widget=forms.HiddenInput,
     )
-    # Display quantity as hidden. Unhide for unbound form with from_cart=False.
+    # Display quantity field as hidden if from_cart=True.
     quantity = forms.DecimalField(required=False)
 
     class Meta:
@@ -272,17 +272,38 @@ class CreateOrderForm(forms.ModelForm):
         fields = ["user"]
         widgets = {"user": forms.HiddenInput}
 
-    def __init__(self, *args, product, **kwargs):
-        # Provide product=None if from_cart=True.
-        self.product = product
+    def __init__(self, *args, product=None, **kwargs):
+        if not kwargs["initial"]["from_cart"]:
+            if not product:
+                raise TypeError("product must be Product object when from_cart=False")
+            self.product = product
         super().__init__(*args, **kwargs)
+        if self.product:
+            self.fields["quantity"].required = True
         self.fields["user"].disabled = True
+
+    def clean(self):
+        super().clean()
+        from_cart = self.cleaned_data["from_cart"]
+        if not from_cart and "quantity" in self.cleaned_data:
+            minimum = self.product.min_order_quantity
+            qty = self.cleaned_data["quantity"]
+            if qty < minimum:
+                error = ValidationError(
+                    message=_("Quantity must be at least %(minimum)s %(units)s."),
+                    code="too_low",
+                    params={
+                        "minimum": minimum,
+                        "units": self.product.unit_measure,
+                    }
+                )
+                self.add_error("quantity", error)
 
     def save(self, commit=True):
         order = super().save(commit=False)
         order.save()
         cart = order.user.cart.products.all()
-        if self.fields["from_cart"]:
+        if self["from_cart"].value():
             order_now = Addition.objects.filter(product__in=cart, order_now=True)
             OrderDetail.objects.bulk_create(
                 [
@@ -297,10 +318,8 @@ class CreateOrderForm(forms.ModelForm):
             OrderDetail.objects.create(
                 order=order,
                 product=self.product,
-                quantity=self.quantity,
+                quantity=self.cleaned_data["quantity"],
             )
-        # if commit:
-        #     order.save()
         return order
 
 

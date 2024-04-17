@@ -241,6 +241,13 @@ class Order(models.Model):
     #       quantities after confirming the order with a disclaimer that
     #       no guarantees that the request will be granted are implied.
 
+    def quantity(self):
+        """
+        Return quantity of each product.
+        """
+        details = self.order_details.all()
+        return [(d.product, d.quantity) for d in details]
+
     def amount(self):
         """
         Return total monetary amount of the order.
