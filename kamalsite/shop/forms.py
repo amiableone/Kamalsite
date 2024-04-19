@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.postgres.forms.ranges import IntegerRangeField
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
-from django.db.models import Min, Max, TextChoices
+from django.db.models import F, Min, Max, TextChoices
 from django.utils.translation import gettext_lazy as _
 
 from .models import (
@@ -168,6 +168,14 @@ class LikeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["user"].disabled = True
         self.fields["product"].disabled = True
+
+    def save(self, commit=True):
+        like = super().save(commit=False)
+        if commit:
+            like.liked = ~F("liked")
+            like.save()
+            like.refresh_from_db(fields=["liked"])
+        return like
 
 
 class AdditionForm(forms.ModelForm):
