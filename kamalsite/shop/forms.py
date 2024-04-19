@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.postgres.forms.ranges import IntegerRangeField
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db.models import Min, Max, TextChoices
 from django.utils.translation import gettext_lazy as _
 
@@ -11,6 +12,7 @@ from .models import (
     Order,
     OrderDetail,
     Product,
+    Shipment,
 )
 
 # TODO.
@@ -351,8 +353,12 @@ class FullNameWidget(forms.MultiWidget):
 
     def decompress(self, value):
         if isinstance(value, str):
-            name = value.split(" ")
-            return  [i for i in name]
+            try:
+                first, middle, last = value.split(" ")
+                return  [last, first, middle]
+            except ValueError:
+                first, last = value.split(" ")
+                return  [last, first, None]
         return [None, None, None]
 
 
@@ -389,7 +395,7 @@ class FullNameField(forms.MultiValueField):
 
     def compress(self, data_list):
         last, first, middle = data_list
-        full_name = first, last, middle
+        full_name = first, middle, last
         return " ".join([i for i in full_name if i])
 
 
@@ -404,6 +410,7 @@ class OrderForm(forms.ModelForm):
         model = Order
         fields = [
             "user",
+            "as_individual",
             "purchaser",
             "purchaser_email",
             "receiver",
@@ -414,6 +421,7 @@ class OrderForm(forms.ModelForm):
         ]
         field_classes = {
             "purchaser": FullNameField,
+            "receiver": FullNameField,
             "shipped": forms.NullBooleanField,
         }
         widgets = {
@@ -430,11 +438,15 @@ class OrderForm(forms.ModelForm):
                 order.purchaser = user.organization
                 order.receiver = user.get_full_name()
             else:
+                order.as_individual = True
                 order.purchaser = user.get_full_name()
             order.purchaser_email = user.email
         super().__init__(*args, **kwargs)
         self.fields["user"].disabled = True
+        self.fields["shipped"].required = False
         self.fields["shipment"].required = False
+        self.fields["shipment"].queryset = Shipment.objects.filter(user=user)
+        self.fields["shipment"].to_field_name = "address"
         # self.fields["shipment_company"].required = False
 
     def clean(self):
@@ -449,11 +461,93 @@ class OrderForm(forms.ModelForm):
 
     def save(self, commit=True):
         order = super().save(commit=False)
-        if self.is_valid():
-            # Move this operation to a view or form that manages email
-            # confirmation.
-            order.confirmed = True
-            order.make_purchase()
         if commit:
+            if self.is_valid():
+                # Move this operation to a view or form that manages email
+                # confirmation. commit=True is required because the form may be
+                # valid but still incomplete when shipped=False.
+                order.confirmed = True
+                order.make_purchase()
             order.save()
         return order
+
+
+class AddressWidget(forms.MultiWidget):
+    def __init__(self, attrs=None):
+        widgets = {
+            "country": forms.TextInput,
+            "area": forms.TextInput,
+            "city": forms.TextInput,
+            "street": forms.TextInput,
+            "building": forms.TextInput,
+        }
+        super().__init__(widgets=widgets, attrs=attrs)
+
+    def decompress(self, value):
+        if isinstance(value, str):
+            return value.split(", ")
+        return [None for w in self.widgets]
+
+
+class AddressField(forms.MultiValueField):
+    """
+    A field for specifying an address.
+    """
+
+    def __init__(self, max_length=None, **kwargs):
+        fields = (
+            forms.CharField(
+                error_messages={"incomplete": "Enter a country name."},
+                initial=_("Russia"),
+                max_length=20,
+            ),
+            forms.CharField(
+                initial=_("(Optional)"),
+                max_length=40,
+                required=False,
+            ),
+            forms.CharField(
+                error_messages={"incomplete": "Enter a city name."},
+                initial=_("Moscow"),
+                max_length=40,
+            ),
+            forms.CharField(
+                error_messages={"incomplete": "Enter a street name."},
+                max_length=40,
+            ),
+            forms.CharField(
+                error_messages={"incomplete": "Enter a valid building number."},
+                max_length=10,
+            ),
+        )
+        super().__init__(
+            fields=fields,
+            require_all_fields=False,
+            widget=AddressWidget,
+            **kwargs,
+        )
+
+    def compress(self, data_list):
+        if data_list:
+            return ", ".join(data_list)
+        return None
+
+
+class ShipmentForm(forms.ModelForm):
+    """
+    A form for creating shipment address objects.
+    """
+    save_address = forms.BooleanField(initial=True, required=False)
+
+    class Meta:
+        model = Shipment
+        fields = ["user", "address", "zip"]
+        field_classes = {"address": AddressField}
+        widgets = {"user": forms.HiddenInput}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["user"].disabled = True
+        self.fields["zip"].validators = [
+            RegexValidator(r"^[0-9]{5,6}$", "Enter a valid zip code."),
+        ]

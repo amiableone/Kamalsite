@@ -203,13 +203,11 @@ class Order(models.Model):
     # TODO: Set on_delete to a callable returning deleted_user placeholder.
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     products = models.ManyToManyField(Product, through="OrderDetail")
+    date_created = models.DateTimeField(auto_now_add=True)
 
-    # Fill out purchaser and purchaser_email automatically with user data or
-    # manually if user is null.
     # TODO:
     #   -   Customize fields for purchaser, purchaser_email, receiver, and
     #       receiver_email.
-    # as_individual=True if user.organization is not None.
     as_individual = models.BooleanField(default=False)
     # purchaser is user.organization if as_individual=False.
     purchaser = models.CharField(max_length=50)
@@ -222,8 +220,8 @@ class Order(models.Model):
     shipped = models.BooleanField(default=False)
     shipment = models.ForeignKey(
         "Shipment",
-        on_delete=models.SET_NULL,
         null=True,
+        on_delete=models.SET_NULL,
     )
     # shipment_company = models.ForeignKey(
     #     "ShipmentCompany",
@@ -235,7 +233,6 @@ class Order(models.Model):
         decimal_places=2,
         default=0,
     )
-    date_created = models.DateTimeField(auto_now_add=True)
     # Validate that confirmed=True only when purchaser/receiver data are filled.
     confirmed = models.BooleanField(default=False)
 
@@ -275,11 +272,9 @@ class Order(models.Model):
     def __str__(self):
         if self.pk:
             products = [p.name for p in self.products.all()]
-            if self.user:
-                return f"{self.user} ordered {products}"
-            return f"Anonym ordered {products}"
+            return f"{products}"
         else:
-            return "Unsaved order"
+            return "unsaved"
 
 
 class OrderDetail(models.Model):
@@ -300,7 +295,7 @@ class OrderDetail(models.Model):
             models.UniqueConstraint(
                 fields=["product", "order"],
                 name="unique_product_order",
-            )
+            ),
         ]
     # Don't override save() as bulk_create is called when an Order instance
     # is created.
@@ -323,9 +318,27 @@ class Purchase(models.Model):
 
 class Shipment(models.Model):
     """
-    Shipment address to ship goods to. Can be created only for
-    authenticated users.
+    Shipment address to ship goods to.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    # TODO: Customize shipment_address field.
-    shipment_address = models.CharField(max_length=300)
+    user = models.ForeignKey(
+        User,
+        null=True,
+        on_delete=models.SET_NULL,
+    )
+    address = models.CharField(max_length=300)
+    zip = models.CharField(max_length=10)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "address"],
+                name="unique_user_address",
+            ),
+        ]
+
+    def __str__(self):
+        try:
+            city = self.address.split(", ")[2]
+            return f"to {city}"
+        except ValueError:
+            return "unsaved"
