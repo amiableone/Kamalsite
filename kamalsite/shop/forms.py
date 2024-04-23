@@ -103,7 +103,7 @@ class PriceRangeField(forms.MultiValueField):
 class CatalogFilterForm(forms.Form):
     """
     A form for filtering products in the catalog.
-    Each Category.ctg_type corresponds to a ModelMultipleChoiceField.
+    Each Category.ctg_type uses a separate ModelMultipleChoiceField.
     """
 
     # Find out how to declare fields dynamically based on existing ctg_type
@@ -119,6 +119,11 @@ class CatalogFilterForm(forms.Form):
         required=False,
         to_field_name="name",
         widget=forms.CheckboxSelectMultiple,
+    )
+    retail = forms.BooleanField(
+        help_text="Display only available products.",
+        initial=False,
+        required=False,
     )
     price_range = PriceRangeField()
 
@@ -141,8 +146,9 @@ class CatalogSortForm(forms.Form):
     """
 
     class SortBy(TextChoices):
-        PRICE = "price", _("Price")
+        NAME = "name", _("Name")
         POPULARITY = "popularity", _("Popularity")
+        PRICE = "price", _("Price")
         NOVELTY = "novelty", _("Novelty")
 
     sort_by = forms.ChoiceField(
