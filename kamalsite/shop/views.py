@@ -2,46 +2,49 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.template import loader
 from django.urls import reverse
+from django.views.generic import DetailView, ListView
+from django.views.generic.base import RedirectView
 
-from .models import Product
+from .forms import (
+    CatalogFilterForm,
+    CatalogSortForm,
+    LikeForm,
+)
+from .models import (
+    Product,
+    User,
+    Like,
+)
 
-def index(request):
-    most_popular_products = Product.objects.order_by("-likes")[:16]
-    template = loader.get_template("shop/index.html")
-    context = {
-        "most_popular_products": most_popular_products,
-    }
-    return  HttpResponse(template.render(context, request))
 
-def details(
-        request,
-        product_id,
-):
-    product = get_object_or_404(Product, pk=product_id)
-    context = {
-        "product": product,
-    }
-    return render(request, "shop/details.html", context)
+class NoPageRedirectView(RedirectView):
+    pattern_name = "shop:catalog"
 
-def purchase(request, product_id):
-    product = get_object_or_404(Product, pk=product_id)
-    context = {
-        "product": product,
-    }
-    return render(request, "shop/buy.html", context)
+    def get_redirect_url(self, *args, **kwargs):
+        kwargs["page"] = 1
+        return super().get_redirect_url(*args, **kwargs)
 
-def like(request, product_id):
-    product = get_object_or_404(Product, pk=product_id)
-    product.likes += 1
-    product.save()
-    return HttpResponseRedirect(
-        reverse("shop:details", args=(product_id,))
-    )
 
-def add_to_cart(request, product_id):
-    product = get_object_or_404(Product, pk=product_id)
-    product.additions += 1
-    product.save()
-    return HttpResponseRedirect(
-        reverse("shop:details", args=(product_id,))
-    )
+class CatalogView(ListView):
+    """
+    Display products.
+    """
+    context_object_name = "catalog"
+    ordering = "-likes"
+    paginate_by = 4
+    queryset = Product.objects.filter(in_production=True)
+    template_name = "shop/catalog.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["filter_form"] = CatalogFilterForm
+        context["sort_form"] = CatalogSortForm
+        return context
+
+
+class ProductDetailView(DetailView):
+    """
+    Display a product page.
+    """
+    context_object_name = "product"
+    queryset = Product.objects.filter(in_production=True)
