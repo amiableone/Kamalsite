@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, Http404, HttpResponseRedirect
 from django.template import loader
 from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, ListView
 from django.views.generic.base import RedirectView
 
@@ -39,6 +40,9 @@ class CatalogView(ListView):
         context = super().get_context_data(**kwargs)
         context["filter_form"] = CatalogFilterForm
         context["sort_form"] = CatalogSortForm
+        context["like_form"] = LikeForm
+        context["apply"] = _("Apply")
+        context["like"] = _("Like")
         return context
 
 

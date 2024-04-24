@@ -1,0 +1,35 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'shop/style.css' %}">
+
+<div class="catalog-filter">
+    <form method="post">
+    {% csrf_token %}
+        {{ filter_form }}
+        <input type="submit" value="{{ apply }}">
+    </form>
+</div>
+
+<div class="catalog-sort">
+    <form method="post">
+    {% csrf_token %}
+        {{ sort_form }}
+        <input type="submit" value="{{ apply }}">
+    </form>
+</div>
+
+{% for product in catalog %}
+    <div class="product-card">
+        <b>Name:</b> <a href="{% url 'shop:product-detail' product.id %}">
+                {{ product.name }}
+            </a>
+        </b>
+        </br>
+        <b>Price:</b> {{ product.price }}
+        </br>
+        <form method="post">
+        {% csrf_token %}
+            {{ like_form }}
+            <input type="submit" value="{{ like }}"> {{ product.likes.count }}
+        </form>
+    </div>
+{% endfor %}
