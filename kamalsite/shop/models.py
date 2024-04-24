@@ -30,8 +30,8 @@ class Product(models.Model):
     )
     min_order_quantity = models.DecimalField(max_digits=12, decimal_places=2)
 
-    # Use date_created to sort by novelty and in_production to remove from the
-    # catalog when quantity reaches zero.
+    # Use date_created to sort by novelty and in_production
+    # to control visibility of products in the catalog.
     date_created = models.DateField(
         default=datetime.date.today,
         help_text="when first appeared in the catalog",
@@ -74,7 +74,7 @@ class Like(models.Model):
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
-        related_name="liked_by",
+        related_name="likes",
     )
     liked = models.BooleanField(default=False)
 
