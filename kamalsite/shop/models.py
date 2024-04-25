@@ -65,6 +65,11 @@ class Product(models.Model):
         return f"{self.name}"
 
 
+class TrueLikesQuerySet(models.QuerySet):
+    def qty(self):
+        return self.filter(liked=True).count()
+
+
 class Like(models.Model):
     user = models.ForeignKey(
         User,
@@ -77,6 +82,8 @@ class Like(models.Model):
         related_name="likes",
     )
     liked = models.BooleanField(default=False)
+
+    objects = TrueLikesQuerySet.as_manager()
 
     class Meta:
         constraints = [

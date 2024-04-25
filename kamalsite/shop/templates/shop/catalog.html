@@ -1,11 +1,11 @@
 {% load static %}
-<link rel="stylesheet" href="{% static 'shop/style.css' %}">
+<link rel="stylesheet" href="{% static 'shop/catalog.css' %}" />
 
 <div class="catalog-filter">
     <form method="post">
     {% csrf_token %}
         {{ filter_form }}
-        <input type="submit" value="{{ apply }}">
+        <input type="submit" value="{{ apply }}" />
     </form>
 </div>
 
@@ -13,7 +13,7 @@
     <form method="post">
     {% csrf_token %}
         {{ sort_form }}
-        <input type="submit" value="{{ apply }}">
+        <input type="submit" value="{{ apply }}" />
     </form>
 </div>
 
@@ -26,10 +26,10 @@
         </br>
         <b>Price:</b> {{ product.price }}
         </br>
-        <form method="post">
+        <form class="like-incard" method="post">
         {% csrf_token %}
             {{ like_form }}
-            <input type="submit" value="{{ like }}"> {{ product.likes.count }}
+            <input type="submit" value="{{ like }}" /> {{ product.likes.qty }}
         </form>
     </div>
 {% endfor %}
