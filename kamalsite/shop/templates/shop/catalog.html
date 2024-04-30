@@ -2,34 +2,32 @@
 <link rel="stylesheet" href="{% static 'shop/catalog.css' %}" />
 
 <div class="catalog-filter">
-    <form method="post">
-    {% csrf_token %}
+    <form method="get">
         {{ filter_form }}
-        <input type="submit" value="{{ apply }}" />
+        <input type="submit" value="{{ apply_button }}" />
     </form>
 </div>
 
 <div class="catalog-sort">
-    <form method="post">
-    {% csrf_token %}
+    <form method="get">
         {{ sort_form }}
-        <input type="submit" value="{{ apply }}" />
+        <input type="submit" value="{{ apply_button }}" />
     </form>
 </div>
 
-{% for product in catalog %}
+{% for product, like_form in view.product_cards %}
     <div class="product-card">
-        <b>Name:</b> <a href="{% url 'shop:product-detail' product.id %}">
-                {{ product.name }}
-            </a>
-        </b>
+        <b>Name:</b>
+        <a href="{% url 'shop:product-detail' product.pk %}">
+            {{ product.name }}
+        </a>
         </br>
         <b>Price:</b> {{ product.price }}
         </br>
-        <form class="like-incard" method="post">
-        {% csrf_token %}
+        <form action="{% url 'shop:product-card-like' product.id %}" class="like-incard" method="post">
+            {% csrf_token %}
             {{ like_form }}
-            <input type="submit" value="{{ like }}" /> {{ product.likes.qty }}
+            <input type="submit" value="{{ like_button }}" /> {{ product.likes.qty }}
         </form>
     </div>
 {% endfor %}
