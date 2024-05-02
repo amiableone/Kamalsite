@@ -15,7 +15,7 @@
     </form>
 </div>
 
-{% for product, like_form in view.product_cards %}
+{% for product, like_form, add_form in view.product_cards %}
     <div class="product-card">
         <b>Name:</b>
         <a href="{% url 'shop:product-detail' product.pk %}">
@@ -27,7 +27,13 @@
         <form action="{% url 'shop:product-card-like' product.id %}" class="like-incard" method="post">
             {% csrf_token %}
             {{ like_form }}
-            <input type="submit" value="{{ like_button }}" /> {{ product.likes.qty }}
+            <button type="submit">{{ like_button }}</button> {{ product.likes.qty }}
         </form>
+        <form action="{% url 'shop:product-card-add' product.id %}" class="add-incard" method="post">
+            {% csrf_token %}
+            {{ add_form }}
+            <button type="submit">{{ add_to_cart_button }}</button>
+        </form>
+        </br>
     </div>
 {% endfor %}

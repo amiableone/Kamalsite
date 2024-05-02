@@ -162,20 +162,20 @@ class CatalogSortForm(forms.Form):
 
 
 class LikeForm(forms.ModelForm):
+    """
+    Like a product.
+    """
+    action = forms.CharField(
+        initial="like",
+        widget=forms.HiddenInput,
+    )
+
     class Meta:
         model = Like
-        fields = ["user", "product"]
-        widgets = {
-            "user": forms.HiddenInput,
-            "product": forms.HiddenInput,
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["user"].disabled = True
-        self.fields["product"].disabled = True
+        fields = []
 
     def save(self, commit=True):
+        # Provide Like instance to the bound form.
         like = super().save(commit=False)
         if commit:
             like.liked = ~F("liked")
@@ -185,39 +185,27 @@ class LikeForm(forms.ModelForm):
 
 
 class AdditionForm(forms.ModelForm):
+    action = forms.CharField(
+        initial="addition",
+        widget=forms.HiddenInput,
+    )
+
     class Meta:
         model = Addition
-        fields = ["cart", "product"]
+        fields = ["product"]
         widgets = {
-            "cart": forms.HiddenInput,
             "product": forms.HiddenInput,
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["cart"].disabled = True
-        self.fields["product"].disabled = True
 
 
 class CreateAdditionForm(AdditionForm):
     """
-    Add products to cart (and create Addition instances) with this form.
+    Add products to cart with this form.
+    Create a new Addition instance or update an existing one.
     """
 
-    def __init__(self, *args, **kwargs):
-        try:
-            cart = kwargs["initial"]["cart"]
-            product = kwargs["initial"]["product"]
-            addition = Addition.objects.get(cart=cart, product=product)
-            # Can't save duplicate instance. Hence, existing one has to be provided.
-            kwargs["instance"] = addition
-        except KeyError:
-            raise TypeError("argument initial is required.")
-        except Addition.DoesNotExist:
-            pass
-        super().__init__(*args, **kwargs)
-
     def save(self, commit=True):
+        # Provide Addition instance to the bound form.
         addition = super().save(commit=False)
         addition.quantity = addition.product.min_order_quantity
         if commit:
