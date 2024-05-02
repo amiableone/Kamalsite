@@ -29,11 +29,15 @@
             {{ like_form }}
             <button type="submit">{{ like_button }}</button> {{ product.likes.qty }}
         </form>
-        <form action="{% url 'shop:product-card-add' product.id %}" class="add-incard" method="post">
-            {% csrf_token %}
-            {{ add_form }}
-            <button type="submit">{{ add_to_cart_button }}</button>
-        </form>
+        {% if add_form is True %}
+            <a href="/link-to-cart-will-be-here/">{{ link_to_cart }}</a>
+        {% else %}
+            <form action="{% url 'shop:product-card-add' product.id %}" class="add-incard" method="post">
+                {% csrf_token %}
+                {{ add_form }}
+                <button type="submit">{{ add_to_cart_button }}</button>
+            </form>
+        {% endif %}
         </br>
     </div>
 {% endfor %}

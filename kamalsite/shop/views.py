@@ -41,11 +41,19 @@ class CatalogView(ListView):
         like_forms = []
         add_form = forms.CreateAdditionForm
         add_forms = []
+        addition_ = models.Addition
+
         for product in self.queryset:
             like_forms.append(like_form())
-            add_forms.append(
-                add_form(initial={"product": product.id})
-            )
+            if addition_.objects.filter(
+                cart=request.user.cart,
+                product=product,
+            ).exists():
+                add_forms.append(True)
+            else:
+                add_forms.append(
+                    add_form(initial={"product": product.id})
+                )
         self.product_cards = zip(self.queryset, like_forms, add_forms)
         request.session["page"] = kwargs["page"]
         return super().get(request, *args, **kwargs)
@@ -67,6 +75,7 @@ class CatalogView(ListView):
         context["apply_button"] = _("Apply")
         context["like_button"] = _("Like")
         context["add_to_cart_button"] = _("Add to cart")
+        context["link_to_cart"] = _("To cart")
         return context
 
 
@@ -104,6 +113,8 @@ class ProductCardAdditionView(View):
     template_name = "shop/catalog.html"
 
     def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return HttpResponseForbidden()
         addition_ = models.Addition
         product_ = models.Product
         try:
