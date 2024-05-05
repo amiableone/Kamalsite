@@ -98,24 +98,21 @@ class Like(models.Model):
 
 
 class Category(models.Model):
-    # TODO:
-    #   -   It may make sense to create subclasses of this model for each
-    #       category type. But then there would have to be a way of creating
-    #       such subclasses from the admin site or else Erika wouldn't be able
-    #       to create new types of categories.
-    ctg_type = models.CharField(
+    name = models.CharField(
         max_length=50,
         help_text="e.g. size, colour, furniture type, etc.",
     )
-    name = models.CharField(max_length=50)
-    parent_category = models.ForeignKey(
+    value = models.CharField(max_length=50)
+    parent = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
         related_name="subcategories",
         null=True,
     )
-
     products = models.ManyToManyField(Product)
+
+    class Meta:
+        ordering = ["name", "value"]
 
     def __str__(self):
         return f"{self.name}"
