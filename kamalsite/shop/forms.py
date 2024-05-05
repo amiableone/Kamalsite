@@ -106,38 +106,23 @@ class CatalogFilterForm(forms.Form):
     Each Category.ctg_type uses a separate ModelMultipleChoiceField.
     """
 
-    # Find out how to declare fields dynamically based on existing ctg_type
-    # values. Using setattr in __init__ doesn't create the fields.
-    colour = forms.ModelMultipleChoiceField(
-        queryset=Category.objects.filter(ctg_type="colour"),
-        required=False,
-        to_field_name="name",
-        widget=forms.CheckboxSelectMultiple,
-    )
-    size = forms.ModelMultipleChoiceField(
-        queryset=Category.objects.filter(ctg_type="size"),
-        required=False,
-        to_field_name="name",
-        widget=forms.CheckboxSelectMultiple,
-    )
     retail = forms.BooleanField(
-        help_text="Display only available products.",
+        help_text="Limit to products available for retail purchase.",
         initial=False,
         required=False,
     )
     price_range = PriceRangeField()
 
-    # TODO.
-    #   -   Add these fields:
-    #       -   Customize ModelMultipleChoiceField or SelectMultiple to allow for
-    #           a neutral choice in addition to including/excluding. An alternative
-    #           would be to create a separate form for excluding categories,
-    #       -   A field for choosing Collection instances,
-    #   -   Selecting a category should make its subcategories selected,
-
-    # template_name is a property returning the value of form_template_name
-    # of the renderer. It may be overridden like this:
-    # template_name = "catalog_filter_snippet.html"
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        types = Category.objects.values("name").distinct()
+        for t in types:
+            self.fields[t["name"]] = forms.ModelMultipleChoiceField(
+                queryset=Category.objects.filter(name=t["name"]),
+                required=False,
+                to_field_name="value",
+                widget=forms.CheckboxSelectMultiple,
+            )
 
 
 class CatalogSortForm(forms.Form):
