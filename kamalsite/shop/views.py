@@ -33,18 +33,18 @@ class CatalogView(ListView):
     paginate_by = 4
     queryset = models.Product.objects.filter(in_production=True)
     template_name = "shop/catalog.html"
-    filter_settings = {}
-    sort_settings = {}
+    like_form = forms.LikeForm
+    add_form = forms.CreateAdditionForm
+    filter_form = forms.CatalogFilterForm
+    sort_form = forms.CatalogSortForm
 
     def get(self, request, *args, **kwargs):
-        like_form = forms.LikeForm
         like_forms = []
-        add_form = forms.CreateAdditionForm
         add_forms = []
         addition_ = models.Addition
 
         for product in self.queryset:
-            like_forms.append(like_form())
+            like_forms.append(self.like_form())
             if addition_.objects.filter(
                 cart=request.user.cart,
                 product=product,
@@ -52,7 +52,7 @@ class CatalogView(ListView):
                 add_forms.append(True)
             else:
                 add_forms.append(
-                    add_form(initial={"product": product.id})
+                    self.add_form(initial={"product": product.id})
                 )
         self.product_cards = zip(self.queryset, like_forms, add_forms)
         request.session["page"] = kwargs["page"]
@@ -63,15 +63,16 @@ class CatalogView(ListView):
             "like": ProductCardLikeView.as_view,
             "addition": ProductCardAdditionView.as_view,
         }
-        view = views[request.POST["action"]]()
+        action = request.POST.get("action")
+        view = views.get(action, NoPageRedirectView.as_view)()
         return view(request, *args, **kwargs)
 
     post.alters_data = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["filter_form"] = forms.CatalogFilterForm()
-        context["sort_form"] = forms.CatalogSortForm()
+        context["filter_form"] = self.filter_form()
+        context["sort_form"] = self.sort_form()
         context["apply_button"] = _("Apply")
         context["like_button"] = _("Like")
         context["add_to_cart_button"] = _("Add to cart")
