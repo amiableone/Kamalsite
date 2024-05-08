@@ -123,6 +123,10 @@ class CatalogFilterForm(forms.Form):
                 to_field_name="value",
                 widget=forms.CheckboxSelectMultiple,
             )
+        self.fields["types"] = forms.CharField(
+            initial=", ".join(list(types)),
+            widget=forms.HiddenInput,
+        )
 
 
 class CatalogSortForm(forms.Form):

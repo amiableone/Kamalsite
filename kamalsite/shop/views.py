@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.shortcuts import render, get_object_or_404
 from django.http import (
     HttpResponse,
@@ -78,6 +79,30 @@ class CatalogView(ListView):
         context["add_to_cart_button"] = _("Add to cart")
         context["link_to_cart"] = _("To cart")
         return context
+
+    def get_queryset(self):
+        cases = {
+            "filter": self.get_filtered_queryset,
+            "sort": lambda: None,   # TBA
+        }
+        return cases.get(self.request.GET["action"], lambda: None)()
+
+    def get_filtered_queryset(self):
+        types = self.request.GET["types"]
+        for t in types:
+            try:
+                limit_to |= Q(category__in=self.request.GET[t])
+            except NameError:
+                limit_to = Q(category__in=self.request.GET[t])
+        # TODO: exclude unmarked child categories of which parent categories were
+        #   chosen.
+        limit_to |= Q(
+            price__gte=self.request.GET["price_range"][0],
+            price__lte=self.request.GET["price_range"][1],
+        )
+        if self.request.GET["retail"]:
+            limit_to |= Q(quantity__gt=0) | Q(min_order_quantity=0)
+        return self.queryset.filter(limit_to)
 
 
 class ProductCardLikeView(View):
