@@ -39,11 +39,11 @@ from .models import (
 #           The documentation says contained_by supports DecimalField.
 
 
-class PriceRangeWidget(forms.MultiWidget):
+class RangeWidget(forms.MultiWidget):
     def __init__(self, attrs=None):
         widgets = {
-            "min_price": forms.NumberInput,
-            "max_price": forms.NumberInput,
+            "min": forms.NumberInput,
+            "max": forms.NumberInput,
         }
         super().__init__(widgets=widgets, attrs=attrs)
 
@@ -51,6 +51,14 @@ class PriceRangeWidget(forms.MultiWidget):
         if value:
             return [i for i in value]
         return [None, None]
+
+
+def get_price_extremes():
+    extremes = Product.objects.filter(in_production=True).aggregate(
+        min=Min("price"),
+        max=Max("price"),
+    )
+    return extremes["min"], extremes["max"]
 
 
 class PriceRangeField(forms.MultiValueField):
@@ -64,21 +72,14 @@ class PriceRangeField(forms.MultiValueField):
     # It's yet to see if it proves to be sufficient this way.
 
     def __init__(self, **kwargs):
-        price_extremes = Product.objects.aggregate(
-            min_price=Min("price"),
-            max_price=Max("price"),
-        )
-        min_price = price_extremes["min_price"]
-        max_price = price_extremes["max_price"]
+        lo, hi = get_price_extremes()
         fields = (
             forms.IntegerField(
-                initial=min_price,
-                min_value=min_price,
+                min_value=lo,
                 required=False,
             ),
             forms.IntegerField(
-                initial=max_price,
-                max_value=max_price,
+                max_value=hi,
                 required=False,
             ),
         )
@@ -86,7 +87,7 @@ class PriceRangeField(forms.MultiValueField):
             fields=fields,
             require_all_fields=False,
             required=False,
-            widget=PriceRangeWidget,
+            widget=RangeWidget,
             **kwargs,
         )
 
@@ -106,25 +107,30 @@ class CatalogFilterForm(forms.Form):
     Each Category.ctg_type uses a separate ModelMultipleChoiceField.
     """
 
+    action = forms.CharField(initial="filter_catalog", widget=forms.HiddenInput)
     retail = forms.BooleanField(
         help_text="Limit to products available for retail purchase.",
         initial=False,
         required=False,
     )
-    price_range = PriceRangeField()
+    price_range = PriceRangeField(initial=get_price_extremes)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         types = Category.objects.values("name").distinct()
-        for t in types:
-            self.fields[t["name"]] = forms.ModelMultipleChoiceField(
-                queryset=Category.objects.filter(name=t["name"]),
+        names = [t["name"]  for t in types]
+        processed = {}
+        for name in names:
+            if processed.get(name):
+                continue
+            self.fields[name] = forms.ModelMultipleChoiceField(
+                queryset=Category.objects.filter(name=name),
                 required=False,
                 to_field_name="value",
                 widget=forms.CheckboxSelectMultiple,
             )
         self.fields["types"] = forms.CharField(
-            initial=", ".join(list(types)),
+            initial=", ".join(processed),
             widget=forms.HiddenInput,
         )
 
@@ -140,6 +146,7 @@ class CatalogSortForm(forms.Form):
         PRICE = "price", _("Price")
         NOVELTY = "novelty", _("Novelty")
 
+    action = forms.CharField(initial="sort_catalog", widget=forms.HiddenInput)
     sort_by = forms.ChoiceField(
         choices=SortBy,
         initial=SortBy.NOVELTY,
@@ -154,10 +161,7 @@ class LikeForm(forms.ModelForm):
     """
     Like a product.
     """
-    action = forms.CharField(
-        initial="like",
-        widget=forms.HiddenInput,
-    )
+    action = forms.CharField(initial="like", widget=forms.HiddenInput)
 
     class Meta:
         model = Like
@@ -174,10 +178,7 @@ class LikeForm(forms.ModelForm):
 
 
 class AdditionForm(forms.ModelForm):
-    action = forms.CharField(
-        initial="addition",
-        widget=forms.HiddenInput,
-    )
+    action = forms.CharField(initial="addition", widget=forms.HiddenInput)
 
     class Meta:
         model = Addition
