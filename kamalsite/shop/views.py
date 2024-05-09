@@ -44,7 +44,8 @@ class CatalogView(ListView):
         add_forms = []
         addition_ = models.Addition
 
-        for product in self.queryset:
+        qs = self.get_queryset()
+        for product in qs:
             like_forms.append(self.like_form())
             if addition_.objects.filter(
                 cart=request.user.cart,
@@ -55,7 +56,7 @@ class CatalogView(ListView):
                 add_forms.append(
                     self.add_form(initial={"product": product.id})
                 )
-        self.product_cards = zip(self.queryset, like_forms, add_forms)
+        self.product_cards = zip(qs, like_forms, add_forms)
         request.session["page"] = kwargs["page"]
         return super().get(request, *args, **kwargs)
 
@@ -81,28 +82,56 @@ class CatalogView(ListView):
         return context
 
     def get_queryset(self):
-        cases = {
-            "filter": self.get_filtered_queryset,
-            "sort": lambda: None,   # TBA
-        }
-        return cases.get(self.request.GET["action"], lambda: None)()
+        self.update_filter_settings()
+        self.filter_queryset()
+        return self.queryset
 
-    def get_filtered_queryset(self):
-        types = self.request.GET["types"]
-        for t in types:
-            try:
-                limit_to |= Q(category__in=self.request.GET[t])
-            except NameError:
-                limit_to = Q(category__in=self.request.GET[t])
-        # TODO: exclude unmarked child categories of which parent categories were
-        #   chosen.
-        limit_to |= Q(
-            price__gte=self.request.GET["price_range"][0],
-            price__lte=self.request.GET["price_range"][1],
-        )
-        if self.request.GET["retail"]:
-            limit_to |= Q(quantity__gt=0) | Q(min_order_quantity=0)
-        return self.queryset.filter(limit_to)
+    def update_filter_settings(self):
+        if self.request.GET.get("action") == "filter_catalog":
+            self.request.session["filter_settings"] = self.request.GET
+
+    def filter_queryset(self):
+        try:
+            filters = self.request.session["filter_settings"]
+            limit_to = Q(
+                price__gte=filters["price_range"][0],
+                price__lte=filters["price_range"][1],
+            )
+            types = filters["types"].split(",")
+            for t in types:
+                limit_to |= Q(category__in=filters[t])
+            # TODO: exclude unmarked child categories of which parent categories
+            #   were chosen.
+            if filters["retail"]:
+                limit_to |= Q(quantity__gt=0) | Q(min_order_quantity=0)
+            self.queryset = self.queryset.filter(limit_to)
+        except KeyError:
+            pass
+
+    def get_ordering(self):
+        self.update_sort_settings()
+        try:
+            params = self.request.session["sort_settings"]
+            sort_by = params["sort_by"][0]
+            ascending = params["ascending"]
+            # TODO: Work on what to sort on when popularity is chosen.
+            cases = {
+                "name": "name",
+                "popularity": "likes",
+                "price": "price",
+                "novelty": "date_created"
+            }
+            if ascending:
+                self.ordering = cases.get(sort_by, self.ordering)
+            else:
+                self.ordering = "-" + cases.get(sort_by, self.ordering)
+        except KeyError:
+            pass
+        return self.ordering
+
+    def update_sort_settings(self):
+        if self.request.GET.get("action") == "sort_catalog":
+            self.request.session["sort_settings"] = self.request.GET
 
 
 class ProductCardLikeView(View):

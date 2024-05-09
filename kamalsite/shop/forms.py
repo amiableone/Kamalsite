@@ -16,21 +16,6 @@ from .models import (
 )
 
 # TODO.
-#   -   Create these forms:
-#       -   For filtering products in the catalog - DONE,
-#       -   For sorting products in the catalog - DONE,
-#       -   For liking/disliking a product - DONE,
-#           -   Use sessions to disallow repeated likes/dislikes, additions
-#               (this will be done in views).
-#       -   For adding a product to cart - DONE,
-#       -   For changing the quantity of a product in cart - DONE,
-#       -   For deleting products from cart - DONE,
-#           -   All of these operations with products in cart should be
-#               preferrably done in a way that allows for recalculation of
-#               the total price displayed right in the template (without
-#               overhead of additional post requests).
-#       -   For creating orders (e.g. by clicking on 'Buy' in a cart) - DONE,
-#       -   For filling out order details - DONE,
 #   -   Create a bug report for:
 #       -   Product.objects.filter(price__contained_by=nr) - where nr is a
 #           NumericRange instance - raises django.core.exceptions.FieldError:
@@ -101,6 +86,20 @@ class PriceRangeField(forms.MultiValueField):
         return tuple(data_list)
 
 
+def get_category_types():
+    types = Category.objects.values("name").distinct()
+    names = [t["name"] for t in types]
+    processed = {}
+
+    def process(item):
+        if processed.get(item):
+            return False
+        processed[item] = True
+        return True
+
+    return ",".join(list(filter(process, names)))
+
+
 class CatalogFilterForm(forms.Form):
     """
     A form for filtering products in the catalog.
@@ -108,6 +107,7 @@ class CatalogFilterForm(forms.Form):
     """
 
     action = forms.CharField(initial="filter_catalog", widget=forms.HiddenInput)
+    types = forms.CharField(initial=get_category_types, widget=forms.HiddenInput)
     retail = forms.BooleanField(
         help_text="Limit to products available for retail purchase.",
         initial=False,
@@ -117,22 +117,14 @@ class CatalogFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        types = Category.objects.values("name").distinct()
-        names = [t["name"]  for t in types]
-        processed = {}
+        names = self.fields["types"].initial().split(",")
         for name in names:
-            if processed.get(name):
-                continue
             self.fields[name] = forms.ModelMultipleChoiceField(
                 queryset=Category.objects.filter(name=name),
                 required=False,
                 to_field_name="value",
                 widget=forms.CheckboxSelectMultiple,
             )
-        self.fields["types"] = forms.CharField(
-            initial=", ".join(processed),
-            widget=forms.HiddenInput,
-        )
 
 
 class CatalogSortForm(forms.Form):
