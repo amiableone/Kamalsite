@@ -18,7 +18,6 @@ from myauth.models import User
 class Product(models.Model):
     name = models.CharField(max_length=75)
     description = models.TextField()
-    sku = models.PositiveBigIntegerField(unique=True)
 
     price = models.DecimalField(max_digits=12, decimal_places=2)
     unit_measure = models.CharField(max_length=30, default="units")
@@ -37,12 +36,6 @@ class Product(models.Model):
         help_text="when first appeared in the catalog",
     )
     in_production = models.BooleanField(default=True)
-
-    collection = models.ForeignKey(
-        "Collection",
-        on_delete=models.SET_NULL,
-        null=True,
-    )
     discount = models.ForeignKey(
         "Discount",
         on_delete=models.SET_NULL,
@@ -115,22 +108,7 @@ class Category(models.Model):
         ordering = ["name", "value"]
 
     def __str__(self):
-        return f"{self.name}"
-
-
-class Collection(models.Model):
-    name = models.CharField(max_length=50)
-    description = models.CharField(max_length=150)
-    date_created = models.DateField(default=datetime.date.today)
-
-    # Allow users to see this collection.
-    visible = models.BooleanField(default=False)
-
-    discount = models.ForeignKey(
-        "Discount",
-        on_delete=models.SET_NULL,
-        null=True,
-    )
+        return f"{self.name} {self.value}"
 
 
 def discount_end_date():
@@ -149,6 +127,8 @@ class Discount(models.Model):
 
     # This is a user group name or an empty string.
     group = models.CharField(max_length=50)
+
+    category = models.ManyToManyField(Category)
 
     def within_range(self):
         return 0 <= self.percent <= 70
