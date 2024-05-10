@@ -97,7 +97,7 @@ class CatalogView(ListView):
                 price__gte=filters["price_range"][0],
                 price__lte=filters["price_range"][1],
             )
-            types = filters["types"].split(",")
+            types = filters["types"]
             for t in types:
                 limit_to |= Q(category__in=filters[t])
             # TODO: exclude unmarked child categories of which parent categories

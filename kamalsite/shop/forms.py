@@ -97,7 +97,7 @@ def get_category_types():
         processed[item] = True
         return True
 
-    return ",".join(list(filter(process, names)))
+    return list(filter(process, names))
 
 
 class CatalogFilterForm(forms.Form):
@@ -107,7 +107,10 @@ class CatalogFilterForm(forms.Form):
     """
 
     action = forms.CharField(initial="filter_catalog", widget=forms.HiddenInput)
-    types = forms.CharField(initial=get_category_types, widget=forms.HiddenInput)
+    types = forms.MultipleChoiceField(
+        initial=get_category_types,
+        widget=forms.MultipleHiddenInput,
+    )
     retail = forms.BooleanField(
         help_text="Limit to products available for retail purchase.",
         initial=False,
@@ -117,7 +120,7 @@ class CatalogFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        names = self.fields["types"].initial().split(",")
+        names = self.fields["types"].initial()
         for name in names:
             self.fields[name] = forms.ModelMultipleChoiceField(
                 queryset=Category.objects.filter(name=name),
