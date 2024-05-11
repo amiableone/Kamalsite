@@ -1,19 +1,18 @@
 import datetime
 
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import models
-
-from myauth.models import User
 
 
 # TODO:
-#   -   Create as many dummy methods for all models as needed for writing
-#       tests. Let's make the development of this project test-driven ;)
-#   -   Track popularity of products based on number of vists of product
+#   -   Track popularity of products based on number of visits of product
 #       pages, likes, number of purchases and purchasers, and purchase
 #       amounts.
-#   -   Price, popularity, and novelty will be used as parameters
-#       for users to sort products by on the site.
-#       -   Hence, add an on_sale_since field to Product.
+
+def get_sentinel_user():
+    return get_user_model().objects.get_or_create(username="deleted")
+
 
 class Product(models.Model):
     name = models.CharField(max_length=75)
@@ -65,8 +64,9 @@ class TrueLikesQuerySet(models.QuerySet):
 
 class Like(models.Model):
     user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET(get_sentinel_user),
         related_name="likes",
     )
     product = models.ForeignKey(
@@ -136,9 +136,9 @@ class Discount(models.Model):
 
 class Cart(models.Model):
     user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        primary_key=True,
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET(get_sentinel_user),
     )
     products = models.ManyToManyField(Product, through="Addition")
 
@@ -184,8 +184,12 @@ class Addition(models.Model):
 
 
 class Order(models.Model):
-    # TODO: Set on_delete to a callable returning deleted_user placeholder.
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET(get_sentinel_user),
+        related_name="orders",
+    )
     products = models.ManyToManyField(Product, through="OrderDetail")
     date_created = models.DateTimeField(auto_now_add=True)
 
@@ -206,16 +210,6 @@ class Order(models.Model):
         "Shipment",
         null=True,
         on_delete=models.SET_NULL,
-    )
-    # shipment_company = models.ForeignKey(
-    #     "ShipmentCompany",
-    #     on_delete=models.SET_NULL,
-    #     null=True,
-    # )
-    shipment_cost = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
     )
     # Validate that confirmed=True only when purchaser/receiver data are filled.
     confirmed = models.BooleanField(default=False)
@@ -305,9 +299,9 @@ class Shipment(models.Model):
     Shipment address to ship goods to.
     """
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         null=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.SET(get_sentinel_user),
     )
     address = models.CharField(max_length=300)
     zip = models.CharField(max_length=10)
