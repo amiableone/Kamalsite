@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.postgres.forms.ranges import IntegerRangeField
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from django.db import DatabaseError
 from django.db.models import F, Min, Max, TextChoices
 from django.utils.translation import gettext_lazy as _
 
@@ -87,17 +88,24 @@ class PriceRangeField(forms.MultiValueField):
 
 
 def get_category_types():
-    types = Category.objects.values("name").distinct()
-    names = [t["name"] for t in types]
-    processed = {}
+    try:
+        types = Category.objects.values("name").distinct("name")
+        names = [t["name"] for t in types]
+        return names
+    except (TypeError, DatabaseError, Exception):
+        # distinct() accepts field names only when working with PostgreSQL.
+        # Not sure what exact exception will be raised in case of another db.
+        types = Category.objects.values("name")
+        names = [t["name"] for t in types]
+        processed = {}
 
-    def process(item):
-        if processed.get(item):
-            return False
-        processed[item] = True
-        return True
+        def process(item):
+            if processed.get(item):
+                return False
+            processed[item] = True
+            return True
 
-    return list(filter(process, names))
+        return list(filter(process, names))
 
 
 class CatalogFilterForm(forms.Form):
@@ -107,27 +115,27 @@ class CatalogFilterForm(forms.Form):
     """
 
     action = forms.CharField(initial="filter_catalog", widget=forms.HiddenInput)
-    types = forms.MultipleChoiceField(
-        initial=get_category_types,
-        widget=forms.MultipleHiddenInput,
-    )
     retail = forms.BooleanField(
         help_text="Limit to products available for retail purchase.",
         initial=False,
         required=False,
     )
+    # TODO: Provide initial from the view to account for current filters.
     price_range = PriceRangeField(initial=get_price_extremes)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        names = self.fields["types"].initial()
-        for name in names:
-            self.fields[name] = forms.ModelMultipleChoiceField(
-                queryset=Category.objects.filter(name=name),
+        self.categories = get_category_types()
+        for ctg in self.categories:
+            self.fields[ctg] = forms.ModelMultipleChoiceField(
+                queryset=Category.objects.filter(name=ctg),
                 required=False,
                 to_field_name="value",
                 widget=forms.CheckboxSelectMultiple,
             )
+
+    def category_fields(self):
+        return [self[ctg] for ctg in self.categories]
 
 
 class CatalogSortForm(forms.Form):
