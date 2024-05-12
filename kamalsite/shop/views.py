@@ -140,8 +140,6 @@ class ProductCardLikeView(View):
     template_name = "shop/catalog.html"
 
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return HttpResponseForbidden()
         like_ = models.Like
         product_id = kwargs["product_id"]
         try:
@@ -158,9 +156,10 @@ class ProductCardLikeView(View):
         form = self.form_class(request.POST, instance=like)
         if form.is_valid():
             form.save()
-            self.request.session.setdefault("likes", {})
-            self.request.session["likes"][product_id] = like.liked
-            self.request.session.modified = True
+            if not request.user.is_authenticated:
+                request.session.setdefault("likes", {})
+                request.session["likes"][product_id] = like.liked
+                request.session.modified = True
         page = request.session.get("page", 1)
         return HttpResponseRedirect(
             reverse("shop:catalog", kwargs={"page": page})
@@ -172,27 +171,29 @@ class ProductCardAdditionView(View):
     template_name = "shop/catalog.html"
 
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return HttpResponseForbidden()
-        addition_ = models.Addition
-        product_ = models.Product
+        product_id = kwargs["product_id"]
         try:
+            cart = models.Cart.objects.get_or_create(user=self.request.user)[0]
+        except TypeError:
+            # request.user is an AnonymousUser instance.
             try:
-                cart = request.user.cart
-            except models.Cart.DoesNotExist:
-                cart = models.Cart(user=request.user)
-            addition = addition_.objects.get(
-                cart=cart,
-                product=kwargs["product_id"],
-            )
-        except addition_.DoesNotExist:
-            product = get_object_or_404(product_, id=kwargs["product_id"])
-            addition = addition_(cart=cart, product=product)
-        except KeyError:
-            return Http404("Product does not exist.")
+                cart_id = request.session["cart_id"]
+                cart = models.Cart.objects.get(id=cart_id)
+            except KeyError:
+                cart = models.Cart()
+                cart.save()
+                self.request.session["cart_id"] = cart.pk
+        addition = models.Addition.objects.get_or_create(
+            cart=cart,
+            product_id=product_id,
+        )
         form = self.form_class(request.POST, instance=addition)
         if form.is_valid():
             form.save()
+            if not request.user.is_authenticated:
+                request.session.setdefault("additions", {})
+                request.session["additions"][product_id] = addition.quantity
+                request.session.modified = True
         page = request.session.get("page", 1)
         return HttpResponseRedirect(
             reverse("shop:catalog", kwargs={"page": page})
