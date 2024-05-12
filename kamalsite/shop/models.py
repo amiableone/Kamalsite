@@ -3,7 +3,7 @@ import datetime
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import models
-
+from django.db.models import ObjectDoesNotExist
 
 # TODO:
 #   -   Track popularity of products based on number of visits of product
@@ -145,11 +145,15 @@ class Cart(models.Model):
     def amount(self):
         total = 0
         for a in self.addition_set.filter(order_now=True):
-            total += a.product.price + a.quantity
+            total += a.product.price * a.quantity
         return total
 
     def __str__(self):
-        return f"{self.user}'s cart"
+        if self.pk:
+            products = [p.name for p in self.products.all()]
+            return f"{products}"
+        else:
+            return "incomplete"
 
 
 class Addition(models.Model):
@@ -180,7 +184,10 @@ class Addition(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.product} in {self.cart}"
+        try:
+            return f"{self.product} in cart #{self.cart_id}"
+        except ObjectDoesNotExist:
+            return "incomplete"
 
 
 class Order(models.Model):
@@ -206,20 +213,12 @@ class Order(models.Model):
     # A user can add shipment details beforehand and choose one of them when
     # filling out order details or create and save one right in the process.
     shipped = models.BooleanField(default=False)
-    shipment = models.ForeignKey(
-        "Shipment",
-        null=True,
-        on_delete=models.SET_NULL,
-    )
+    shipment = models.ForeignKey("Shipment", null=True, on_delete=models.SET_NULL)
     # Validate that confirmed=True only when purchaser/receiver data are filled.
     confirmed = models.BooleanField(default=False)
 
     # TODO:
-    #   -   Make Order.quantity uneditable as soon as confirmed is set to
-    #       True.
-    #   -   Add `edit()` method to allow users to make requests to change
-    #       quantities after confirming the order with a disclaimer that
-    #       no guarantees that the request will be granted are implied.
+    #   -   Make Order.quantity uneditable as soon as confirmed=True.
 
     def quantity(self):
         """
@@ -252,7 +251,7 @@ class Order(models.Model):
             products = [p.name for p in self.products.all()]
             return f"{products}"
         else:
-            return "unsaved"
+            return "incomplete"
 
 
 class OrderDetail(models.Model):
