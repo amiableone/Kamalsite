@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.db.models import Q
 from django.shortcuts import render, get_object_or_404
 from django.http import (
@@ -142,21 +143,24 @@ class ProductCardLikeView(View):
         if not request.user.is_authenticated:
             return HttpResponseForbidden()
         like_ = models.Like
-        product_ = models.Product
+        product_id = kwargs["product_id"]
         try:
-            like = like_.objects.get(
+            like = like_.objects.get_or_create(
                 user=request.user,
-                product=kwargs["product_id"],
-            )
-        except like_.DoesNotExist:
-            product = get_object_or_404(product_, id=kwargs["product_id"])
-            like = like_(user=request.user, product=product)
+                product_id=product_id,
+            )[0]
+        except TypeError:
+            # request.user is an AnonymousUser instance.
+            like = like_(product_id=product_id)
             like.save()
-        except KeyError:
+        except IntegrityError:
             return Http404("Product does not exist.")
         form = self.form_class(request.POST, instance=like)
         if form.is_valid():
             form.save()
+            self.request.session.setdefault("likes", {})
+            self.request.session["likes"][product_id] = like.liked
+            self.request.session.modified = True
         page = request.session.get("page", 1)
         return HttpResponseRedirect(
             reverse("shop:catalog", kwargs={"page": page})
