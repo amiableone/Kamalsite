@@ -1,3 +1,5 @@
+import functools
+
 from django import forms
 from django.contrib.postgres.forms.ranges import IntegerRangeField
 from django.core.exceptions import ValidationError
@@ -87,6 +89,7 @@ class PriceRangeField(forms.MultiValueField):
         return tuple(data_list)
 
 
+@functools.cache
 def get_category_types():
     try:
         types = Category.objects.values("name").distinct("name")
@@ -198,7 +201,7 @@ class CreateAdditionForm(AdditionForm):
     """
 
     def save(self, commit=True):
-        # Provide Addition instance to the bound form.
+        # if exists, provide Addition instance to the form from within the view.
         addition = super().save(commit=False)
         addition.quantity = addition.product.min_order_quantity
         if commit:
