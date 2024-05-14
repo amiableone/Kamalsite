@@ -126,9 +126,10 @@ class CatalogFilterForm(forms.Form):
     # TODO: Provide initial from the view to account for current filters.
     price_range = PriceRangeField(initial=get_price_extremes)
 
+    categories = get_category_types()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.categories = get_category_types()
         for ctg in self.categories:
             self.fields[ctg] = forms.ModelMultipleChoiceField(
                 queryset=Category.objects.filter(name=ctg),
