@@ -61,17 +61,6 @@ class CatalogView(ListView):
         request.session["page"] = kwargs["page"]
         return super().get(request, *args, **kwargs)
 
-    def post(self, request, *args, **kwargs):
-        views = {
-            "like": ProductCardLikeView.as_view,
-            "addition": ProductCardAdditionView.as_view,
-        }
-        action = request.POST.get("action")
-        view = views.get(action, NoPageRedirectView.as_view)()
-        return view(request, *args, **kwargs)
-
-    post.alters_data = True
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["filter_form"] = self.filter_form()
@@ -137,7 +126,6 @@ class CatalogView(ListView):
 
 class ProductCardLikeView(View):
     form_class = forms.LikeForm
-    template_name = "shop/catalog.html"
 
     def post(self, request, *args, **kwargs):
         like_ = models.Like
@@ -165,10 +153,11 @@ class ProductCardLikeView(View):
             reverse("shop:catalog", kwargs={"page": page})
         )
 
+    post.alters_data = True
+
 
 class ProductCardAdditionView(View):
     form_class = forms.CreateAdditionForm
-    template_name = "shop/catalog.html"
 
     def post(self, request, *args, **kwargs):
         product_id = kwargs["product_id"]
@@ -198,6 +187,8 @@ class ProductCardAdditionView(View):
         return HttpResponseRedirect(
             reverse("shop:catalog", kwargs={"page": page})
         )
+
+    post.alters_data = True
 
 
 class ProductDetailView(DetailView):

@@ -10,12 +10,12 @@ urlpatterns = [
     path("page<int:page>/", views.CatalogView.as_view(), name="catalog"),
     path(
         "like-<int:product_id>/",
-        views.CatalogView.as_view(),
+        views.ProductCardLikeView.as_view(),
         name="product-card-like",
     ),
     path(
         "add-<int:product_id>/",
-        views.CatalogView.as_view(),
+        views.ProductCardAdditionView.as_view(),
         name="product-card-add",
     ),
     path("product<int:pk>/", views.ProductDetailView.as_view(), name="product-detail"),
