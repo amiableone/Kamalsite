@@ -18,14 +18,6 @@ from .models import (
     Shipment,
 )
 
-# TODO.
-#   -   Create a bug report for:
-#       -   Product.objects.filter(price__contained_by=nr) - where nr is a
-#           NumericRange instance - raises django.core.exceptions.FieldError:
-#           Unsupported lookup 'contained_by' for DecimalField or join on the
-#           field not permitted (even when nr is based on Decimal values).
-#           The documentation says contained_by supports DecimalField.
-
 
 class RangeWidget(forms.MultiWidget):
     def __init__(self, attrs=None):
@@ -36,9 +28,7 @@ class RangeWidget(forms.MultiWidget):
         super().__init__(widgets=widgets, attrs=attrs)
 
     def decompress(self, value):
-        if value:
-            return [i for i in value]
-        return [None, None]
+        return value if value else [None, None]
 
 
 def get_price_extremes():
@@ -47,6 +37,11 @@ def get_price_extremes():
         max=Max("price"),
     )
     return extremes["min"], extremes["max"]
+
+def get_initial_price_range():
+    return 0, Product.objects.filter(in_production=True).aggregate(
+        max=Max("price")
+    )["max"]
 
 
 class PriceRangeField(forms.MultiValueField):
@@ -60,7 +55,7 @@ class PriceRangeField(forms.MultiValueField):
     # It's yet to see if it proves to be sufficient this way.
 
     def __init__(self, **kwargs):
-        lo, hi = get_price_extremes()
+        lo, hi = get_initial_price_range()
         fields = (
             forms.IntegerField(
                 min_value=lo,
@@ -80,35 +75,36 @@ class PriceRangeField(forms.MultiValueField):
         )
 
     def compress(self, data_list):
-        lo, hi = data_list
-        if lo and hi and lo > hi:
-            raise ValidationError(
-                "Min price higher than Max price",
-                code="min_gt_max",
-            )
-        return tuple(data_list)
+        try:
+            lo, hi = data_list
+            if lo and hi and lo > hi:
+                raise ValidationError(
+                    "Min price higher than Max price",
+                    code="min_gt_max",
+                )
+            return tuple(data_list)
+        except ValueError:
+            return
 
 
 @functools.cache
 def get_category_types():
     try:
-        types = Category.objects.values("name").distinct("name")
-        names = [t["name"] for t in types]
-        return names
+        return list(Category.objects.values_list("name", flat=True).distinct("name"))
     except (TypeError, DatabaseError, Exception):
         # distinct() accepts field names only when working with PostgreSQL.
         # Not sure what exact exception will be raised in case of another db.
-        types = Category.objects.values("name")
-        names = [t["name"] for t in types]
+        names = list(Category.objects.values_list("name", flat=True))
         processed = {}
 
-        def process(item):
-            if processed.get(item):
-                return False
-            processed[item] = True
-            return True
+        def keep_as_distinct(item):
+            try:
+                return not processed[item]
+            except KeyError:
+                processed[item] = True
+                return True
 
-        return list(filter(process, names))
+        return list(filter(keep_as_distinct, names))
 
 
 class CatalogFilterForm(forms.Form):
@@ -124,12 +120,13 @@ class CatalogFilterForm(forms.Form):
         required=False,
     )
     # TODO: Provide initial from the view to account for current filters.
-    price_range = PriceRangeField(initial=get_price_extremes)
-
-    categories = get_category_types()
+    price = PriceRangeField(initial=get_initial_price_range)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Categories may change any time. Hence, it makes more sense to attach
+        # the result of get_category_types() to an instance.
+        self.categories = get_category_types()
         for ctg in self.categories:
             self.fields[ctg] = forms.ModelMultipleChoiceField(
                 queryset=Category.objects.filter(name=ctg),
