@@ -1,5 +1,5 @@
 from django.db import IntegrityError
-from django.db.models import Q
+from django.db.models import F, Q
 from django.shortcuts import render, get_object_or_404
 from django.http import (
     HttpResponse,
@@ -41,6 +41,7 @@ class CatalogView(ListView):
     sort_form = forms.CatalogSortForm
 
     def get(self, request, *args, **kwargs):
+        # TODO: Make this method work with not authenticated users.
         like_forms = []
         add_forms = []
         addition_ = models.Addition
@@ -58,7 +59,7 @@ class CatalogView(ListView):
                     self.add_form(initial={"product": product.id})
                 )
         self.product_cards = zip(qs, like_forms, add_forms)
-        request.session["page"] = kwargs["page"]
+        request.session["page"] = kwargs.get("page", 1)
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -72,31 +73,10 @@ class CatalogView(ListView):
         return context
 
     def get_queryset(self):
-        self.update_filter_settings()
-        self.filter_queryset()
+        if self.kwargs.get("conditions", False):
+            for cond in self.kwargs["conditions"]:
+                self.queryset = self.queryset.filter(cond)
         return self.queryset
-
-    def update_filter_settings(self):
-        if self.request.GET.get("action") == "filter_catalog":
-            self.request.session["filter_settings"] = self.request.GET
-
-    def filter_queryset(self):
-        try:
-            filters = self.request.session["filter_settings"]
-            limit_to = Q(
-                price__gte=filters["price_range"][0],
-                price__lte=filters["price_range"][1],
-            )
-            types = filters["types"]
-            for t in types:
-                limit_to |= Q(category__in=filters[t])
-            # TODO: exclude unmarked child categories of which parent categories
-            #   were chosen.
-            if filters["retail"]:
-                limit_to |= Q(quantity__gt=0) | Q(min_order_quantity=0)
-            self.queryset = self.queryset.filter(limit_to)
-        except KeyError:
-            pass
 
     def get_ordering(self):
         self.update_sort_settings()
@@ -189,6 +169,37 @@ class ProductCardAdditionView(View):
         )
 
     post.alters_data = True
+
+
+class CatalogFilterView(View):
+    """
+    Filter queryset displayed by CatalogView.
+    """
+    form_class = forms.CatalogFilterForm
+
+    def get(self, request, *args, **kwargs):
+        form = self.form_class(request.GET)
+        if form.is_valid():
+            price = form.cleaned_data["price"]
+            retail = form.cleaned_data["retail"]
+            categories = [form.cleaned_data[cat] for cat in form.categories]
+            conditions = self._get_query_conditions(price, retail, *categories)
+            kwargs["conditions"] = conditions
+            view = CatalogView.as_view()
+            return view(request, *args, **kwargs)
+        else:
+            # TODO: handle invalid form.
+            pass
+
+    def _get_query_conditions(self, price, retail, *categories):
+        # Use lookups for Product instances.
+        q1 = Q(price__range=price)
+        conditions = [Q(category__in=cat) for cat in categories if cat.exists()]
+        if retail:
+            q2 = Q(min_order_quantity__lte=F("quantity")) & Q(quantity__gt=0)
+            conditions.append(q2)
+        conditions.append(q1)
+        return conditions
 
 
 class ProductDetailView(DetailView):

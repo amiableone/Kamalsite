@@ -8,6 +8,7 @@ urlpatterns = [
     # redirect shop to catalog with page=1:
     path("", views.NoPageRedirectView.as_view(), name="shop"),
     path("page<int:page>/", views.CatalogView.as_view(), name="catalog"),
+    path("filtered/", views.CatalogFilterView.as_view(), name="catalog-filter"),
     path(
         "like-<int:product_id>/",
         views.ProductCardLikeView.as_view(),
