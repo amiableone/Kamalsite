@@ -144,13 +144,16 @@ class Cart(models.Model):
 
     def amount(self):
         total = 0
-        for a in self.addition_set.filter(order_now=True):
-            total += a.product.price * a.quantity
+        for p, qty in (
+                self.addition_set.filter(order_now=True)
+                        .values_list("product__price", "quantity")
+        ):
+            total += p * qty
         return total
 
     def __str__(self):
         if self.pk:
-            products = [p.name for p in self.products.all()]
+            products = list(self.products.values_list("name", flat=True))
             return f"{products}"
         else:
             return "incomplete"
@@ -224,15 +227,15 @@ class Order(models.Model):
         """
         Return quantity of each product.
         """
-        return [(d.product, d.quantity) for d in self.order_details.all()]
+        return [self.order_details.values_list("product__name", "quantity")]
 
     def amount(self):
         """
         Return total monetary amount of the order.
         """
         total = 0
-        for detail in self.order_details.all():
-            total += detail.product.price * detail.quantity
+        for p, qty in self.order_details.values_list("product__price", "quantity"):
+            total += p * qty
         return total
 
     def make_purchase(self):
@@ -248,7 +251,7 @@ class Order(models.Model):
 
     def __str__(self):
         if self.pk:
-            products = [p.name for p in self.products.all()]
+            products = list(self.products.values_list("name", flat=True))
             return f"{products}"
         else:
             return "incomplete"
