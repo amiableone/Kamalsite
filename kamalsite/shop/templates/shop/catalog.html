@@ -2,8 +2,30 @@
 <link rel="stylesheet" href="{% static 'shop/catalog.css' %}" />
 
 <div class="catalog-filter">
-    <form method="get">
-        {{ filter_form }}
+    <p>Filters</p>
+    <form action="{% url 'shop:catalog-filter' %}" method="get">
+        <div class="category-field">
+            {% for field in filter_form.category_fields %}
+                <fieldset>
+                    {{ field.legend_tag }}
+                    {% for checkbox in field %}
+                        <label for="{{ checkbox.id_for_label }}">
+                            <span class="checkbox">{{ checkbox.tag }}</span>
+                            {{ checkbox.data.value.value }}
+                        </label>
+                    {% endfor %}
+                </fieldset>
+            {% endfor %}
+        </div>
+        <div class="price-range-field">
+            {{ filter_form.price.render }}
+        </div>
+        <div class="retail-field">
+            {{ filter_form.retail.render }}
+        </div>
+        {% for field in filter_form.hidden_fields %}
+            {{ field }}
+        {% endfor %}
         <input type="submit" value="{{ apply_button }}" />
     </form>
 </div>
@@ -38,6 +60,6 @@
                 <button type="submit">{{ add_to_cart_button }}</button>
             </form>
         {% endif %}
-        </br>
     </div>
+    </br>
 {% endfor %}
