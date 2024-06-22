@@ -182,24 +182,27 @@ class LikeForm(forms.ModelForm):
 
 
 class AdditionForm(forms.ModelForm):
-    action = forms.CharField(initial="addition", widget=forms.HiddenInput)
-
+    """Base form for managing Addition instances."""
     class Meta:
         model = Addition
-        fields = ["product"]
+        fields = ["product", "cart"]
         widgets = {
             "product": forms.HiddenInput,
+            "cart": forms.HiddenInput,
         }
 
 
 class CreateAdditionForm(AdditionForm):
     """
     Add products to cart with this form.
-    Create a new Addition instance or update an existing one.
+    Create a new Addition instance.
     """
 
     def save(self, commit=True):
-        # if exists, provide Addition instance to the form from within the view.
+        # This operation will raise ValueError if an Addition instance with
+        # these Product and Cart already exists. In this case, an appropriate
+        # form class to use is AdditionQuantityForm. Use of appropriate form
+        # class is handled by the corresponding view (ProductCardAdditionView).
         addition = super().save(commit=False)
         addition.quantity = addition.product.min_order_quantity
         if commit:
@@ -210,8 +213,7 @@ class CreateAdditionForm(AdditionForm):
 class AdditionQuantityForm(AdditionForm):
     """
     Change quantity of a product in cart (specified in Addition.quantity).
-    Specify if a product is to be ordered (or kept in cart idly).
-    Initiate with an Addition instance.
+    Specify if the product is to be ordered (or kept in cart idly).
     """
 
     class Meta(AdditionForm.Meta):
@@ -254,19 +256,22 @@ class AdditionQuantityForm(AdditionForm):
 class DeleteAdditionForm(AdditionForm):
     """
     Delete product from cart.
+    Delete Addition instance related to given product-cart pair.
     """
 
     def __init__(self, *args, **kwargs):
         if not "instance" in kwargs:
-            raise TypeError("instance argument is required.")
+            # instance to be deleted must be provided.
+            raise ValueError("instance argument is required.")
         super().__init__(*args, **kwargs)
 
     def save(self, commit=True):
         addition = super().save(commit=False)
-        addition.quantity = 0
-        addition.order_now = False
         if commit:
-            addition.save()
+            addition.delete()
+        else:
+            addition.quantity = 0
+            addition.order_now = False
         return addition
 
 
