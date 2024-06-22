@@ -73,6 +73,8 @@ class CatalogView(ListView):
         return context
 
     def get_queryset(self):
+        # Source for `conditions` key in self.kwargs is method get() of
+        # class CatalogFilterView.
         if self.kwargs.get("conditions", False):
             for cond in self.kwargs["conditions"]:
                 self.queryset = self.queryset.filter(cond)
