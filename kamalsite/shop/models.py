@@ -2,6 +2,7 @@ import datetime
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.sessions.models import Session
 from django.db import models
 from django.db.models import ObjectDoesNotExist
 
@@ -135,6 +136,11 @@ class Discount(models.Model):
 
 
 class Cart(models.Model):
+    session = models.ForeignKey(
+        Session,
+        null=True,
+        on_delete=models.SET_NULL,
+    )
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         null=True,
